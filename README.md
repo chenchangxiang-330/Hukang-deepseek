@@ -160,5 +160,5 @@ APK 位置：
 | Phase 1 | 项目骨架 · Navigation · SQLite · Camera · 图片导入 | 已完成 |
 | Phase 2 | 条形码 · 本地商品库 · 联网 Barcode Lookup | 已完成 |
 | Phase 3 | 拍商品 · 本地 OCR · 图片质量 · 商品身份提取 · 商品搜索 · 候选商品 | 已完成 |
-| Phase 4 | 营养成分表 OCR · Nutrition Parser | 进行中 |
+| Phase 4 | 营养成分表 OCR · Nutrition Parser · 用户确认 | 已完成 |
 | Phase 5–8 | 配料表 · 日期/库存/通知 · 营养记录/历史 · 视觉统一 | 未开始 |

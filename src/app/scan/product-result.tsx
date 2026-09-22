@@ -193,7 +193,16 @@ export default function ProductResultScreen() {
             accessibilityRole="button"
             style={styles.primaryButton}
             onPress={() =>
-              router.replace({ pathname: '/scan/capture', params: { task: 'nutrition_label' } })
+              router.replace({
+                pathname: '/scan/capture',
+                params: {
+                  task: 'nutrition_label',
+                  // 把已经认出来的身份带过去，用户不用重复填
+                  ...(identity?.productName ? { name: identity.productName } : {}),
+                  ...(identity?.brand ? { brand: identity.brand } : {}),
+                  ...(identity?.barcode ? { barcode: identity.barcode } : {}),
+                },
+              })
             }
           >
             <Text style={styles.primaryButtonText}>继续拍营养成分表</Text>
@@ -202,7 +211,14 @@ export default function ProductResultScreen() {
             accessibilityRole="button"
             style={styles.secondaryButton}
             onPress={() =>
-              router.replace({ pathname: '/scan/capture', params: { task: 'ingredients_label' } })
+              router.replace({
+                pathname: '/scan/capture',
+                params: {
+                  task: 'ingredients_label',
+                  ...(identity?.productName ? { name: identity.productName } : {}),
+                  ...(identity?.brand ? { brand: identity.brand } : {}),
+                },
+              })
             }
           >
             <Text style={styles.secondaryButtonText}>继续拍配料表</Text>
@@ -210,7 +226,14 @@ export default function ProductResultScreen() {
           <Pressable
             accessibilityRole="button"
             style={styles.secondaryButton}
-            onPress={() => router.replace({ pathname: '/product/create', params: {} })}
+            onPress={() =>
+              router.replace({
+                pathname: '/product/create',
+                params: {
+                  ...(identity?.barcode ? { barcode: identity.barcode } : {}),
+                },
+              })
+            }
           >
             <Text style={styles.secondaryButtonText}>手动创建商品</Text>
           </Pressable>

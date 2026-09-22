@@ -18,6 +18,7 @@ export default function ScanLayout() {
       <Stack.Screen name="result" options={{ title: '识别结果' }} />
       <Stack.Screen name="barcode-result" options={{ title: '商品查询' }} />
       <Stack.Screen name="product-result" options={{ title: '拍商品' }} />
+      <Stack.Screen name="nutrition-result" options={{ title: '营养成分表' }} />
     </Stack>
   );
 }

@@ -46,7 +46,14 @@ const FLASH_LABEL: Record<FlashMode, string> = {
 };
 
 export default function CaptureScreen() {
-  const { task: taskParam } = useLocalSearchParams<{ task?: string }>();
+  const { task: taskParam, name, brand, barcode, productId } = useLocalSearchParams<{
+    task?: string;
+    /** 拍商品时已经识别出来的身份，拍营养成分表时带过去，避免让用户重复填 */
+    name?: string;
+    brand?: string;
+    barcode?: string;
+    productId?: string;
+  }>();
   const task = (taskParam ?? 'product_photo') as ScanTask;
   const definition = getScanTaskDefinition(task);
 
@@ -90,6 +97,21 @@ export default function CaptureScreen() {
         return;
       }
 
+      // 营养成分表走 OCR → Parser → 用户确认（§27）
+      if (task === 'nutrition_label') {
+        router.replace({
+          pathname: '/scan/nutrition-result',
+          params: {
+            uri,
+            ...(name ? { name } : {}),
+            ...(brand ? { brand } : {}),
+            ...(barcode ? { barcode } : {}),
+            ...(productId ? { productId } : {}),
+          },
+        });
+        return;
+      }
+
       router.replace({
         pathname: '/scan/result',
         params: {
@@ -101,7 +123,7 @@ export default function CaptureScreen() {
         },
       });
     },
-    [router, task],
+    [brand, barcode, name, productId, router, task],
   );
 
   const handleCapture = useCallback(async () => {

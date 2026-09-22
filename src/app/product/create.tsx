@@ -3,7 +3,9 @@
  *
  * 原则：只有“名称”是必填，其余全部可以留空。
  * 留空 = 未记录（null），绝不是 0（§10 / §28）。
- * 用户在包装上看不到的项目，就应该能留空，而不是被迫填 0。
+ *
+ * 营养部分复用 NutritionEditor —— 与“拍营养成分表”后的确认页共用同一套表单，
+ * 避免两处规则不一致（例如一边允许留空、另一边偷偷填 0）。
  */
 
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -20,46 +22,30 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { NutritionEditor } from '@/components/NutritionEditor';
 import { createProduct } from '@/db/repositories/productRepo';
-import { NUTRITION_FIELDS, type NutritionField } from '@/domain/nutrition';
-import { FIELD_LABELS, FIELD_UNITS } from '@/domain/nutritionFormat';
-import type { NutritionBasisUnit, NutritionFacts } from '@/domain/types';
+import {
+  createEmptyDraft,
+  draftToNutrition,
+  type NutritionDraft,
+} from '@/domain/nutritionDraft';
 import { colors, radii, spacing, typography } from '@/theme';
 
-/** 空字符串 → null；非数字 → null。绝不把空输入变成 0。 */
-function parseNumber(text: string): number | null {
-  const trimmed = text.trim();
-  if (trimmed === '') return null;
-  const n = Number(trimmed);
-  return Number.isFinite(n) ? n : null;
-}
-
-const BASIS_UNITS: { key: NutritionBasisUnit; label: string }[] = [
-  { key: 'g', label: '每 100g' },
-  { key: 'ml', label: '每 100mL' },
-  { key: 'serving', label: '每份' },
-];
-
 export default function ProductCreateScreen() {
-  const { barcode } = useLocalSearchParams<{ barcode?: string }>();
+  const { barcode, name: nameParam, brand: brandParam } = useLocalSearchParams<{
+    barcode?: string;
+    name?: string;
+    brand?: string;
+  }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const [name, setName] = useState('');
-  const [brand, setBrand] = useState('');
+  const [name, setName] = useState(nameParam ?? '');
+  const [brand, setBrand] = useState(brandParam ?? '');
   const [quantity, setQuantity] = useState('');
-  const [basisUnit, setBasisUnit] = useState<NutritionBasisUnit>('g');
-  const [values, setValues] = useState<Record<NutritionField, string>>(() => {
-    const initial = {} as Record<NutritionField, string>;
-    for (const field of NUTRITION_FIELDS) initial[field] = '';
-    return initial;
-  });
+  const [draft, setDraft] = useState<NutritionDraft>(() => createEmptyDraft());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const setField = useCallback((field: NutritionField, text: string) => {
-    setValues((prev) => ({ ...prev, [field]: text }));
-  }, []);
 
   const handleSave = useCallback(async () => {
     const trimmedName = name.trim();
@@ -71,17 +57,14 @@ export default function ProductCreateScreen() {
     setSaving(true);
     setError(null);
     try {
-      const facts = {} as NutritionFacts;
-      for (const field of NUTRITION_FIELDS) {
-        facts[field] = parseNumber(values[field]);
-      }
+      const { facts, basisAmount, basisUnit } = draftToNutrition(draft);
 
       const product = await createProduct({
         name: trimmedName,
         brand: brand.trim() || null,
         quantity: quantity.trim() || null,
         barcode: barcode?.trim() || null,
-        nutrition_basis_amount: basisUnit === 'serving' ? 1 : 100,
+        nutrition_basis_amount: basisAmount,
         nutrition_basis_unit: basisUnit,
         ...facts,
         data_source: 'manual',
@@ -93,7 +76,7 @@ export default function ProductCreateScreen() {
     } finally {
       setSaving(false);
     }
-  }, [basisUnit, barcode, brand, name, quantity, router, values]);
+  }, [barcode, brand, draft, name, quantity, router]);
 
   return (
     <KeyboardAvoidingView
@@ -105,42 +88,46 @@ export default function ProductCreateScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.sectionTitle}>基本信息</Text>
-        <Field label="商品名称" required value={name} onChangeText={setName} placeholder="例如 东方树叶 乌龙茶" />
-        <Field label="品牌" value={brand} onChangeText={setBrand} placeholder="例如 农夫山泉" />
-        <Field label="规格" value={quantity} onChangeText={setQuantity} placeholder="例如 500mL" />
-        {barcode ? <Text style={styles.hint}>条形码：{barcode}</Text> : null}
 
-        <Text style={styles.sectionTitle}>营养基准</Text>
-        <View style={styles.chipRow}>
-          {BASIS_UNITS.map((option) => {
-            const active = option.key === basisUnit;
-            return (
-              <Pressable
-                key={option.key}
-                accessibilityRole="button"
-                onPress={() => setBasisUnit(option.key)}
-                style={[styles.chip, active && styles.chipActive]}
-              >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{option.label}</Text>
-              </Pressable>
-            );
-          })}
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>
+            商品名称<Text style={styles.required}> *</Text>
+          </Text>
+          <TextInput
+            style={styles.input}
+            value={name}
+            onChangeText={setName}
+            placeholder="例如 东方树叶 乌龙茶"
+            placeholderTextColor={colors.textTertiary}
+          />
         </View>
 
-        <Text style={styles.sectionTitle}>营养成分</Text>
-        <Text style={styles.hint}>
-          包装上没有的项目请留空，会记为“未记录”。不要填 0 —— 0 表示含量确实为零。
-        </Text>
-        {NUTRITION_FIELDS.filter((f) => f !== 'energy_kj').map((field) => (
-          <Field
-            key={field}
-            label={`${FIELD_LABELS[field]} (${FIELD_UNITS[field]})`}
-            value={values[field]}
-            onChangeText={(text) => setField(field, text)}
-            keyboardType="decimal-pad"
-            placeholder="留空 = 未记录"
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>品牌</Text>
+          <TextInput
+            style={styles.input}
+            value={brand}
+            onChangeText={setBrand}
+            placeholder="例如 农夫山泉"
+            placeholderTextColor={colors.textTertiary}
           />
-        ))}
+        </View>
+
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>规格</Text>
+          <TextInput
+            style={styles.input}
+            value={quantity}
+            onChangeText={setQuantity}
+            placeholder="例如 500mL"
+            placeholderTextColor={colors.textTertiary}
+          />
+        </View>
+
+        {barcode ? <Text style={styles.hint}>条形码：{barcode}</Text> : null}
+
+        <Text style={styles.sectionTitle}>营养成分</Text>
+        <NutritionEditor draft={draft} onChange={setDraft} />
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -157,43 +144,10 @@ export default function ProductCreateScreen() {
   );
 }
 
-interface FieldProps {
-  label: string;
-  value: string;
-  onChangeText: (text: string) => void;
-  placeholder?: string;
-  required?: boolean;
-  keyboardType?: 'default' | 'decimal-pad';
-}
-
-function Field({ label, value, onChangeText, placeholder, required, keyboardType }: FieldProps) {
-  return (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>
-        {label}
-        {required ? <Text style={styles.required}> *</Text> : null}
-      </Text>
-      <TextInput
-        style={styles.input}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={colors.textTertiary}
-        keyboardType={keyboardType ?? 'default'}
-        autoCorrect={false}
-      />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, gap: spacing.md },
-  sectionTitle: {
-    ...typography.section,
-    color: colors.text,
-    marginTop: spacing.md,
-  },
+  sectionTitle: { ...typography.section, color: colors.text, marginTop: spacing.md },
   field: { gap: spacing.xs },
   fieldLabel: { ...typography.label, color: colors.textSecondary },
   required: { color: colors.danger },
@@ -208,18 +162,6 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   hint: { ...typography.caption, color: colors.textTertiary, lineHeight: 18 },
-  chipRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
-  chip: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: radii.pill,
-    backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  chipActive: { backgroundColor: colors.mintSoft, borderColor: colors.mintLine },
-  chipText: { ...typography.label, color: colors.textSecondary },
-  chipTextActive: { color: colors.mintDark },
   primaryButton: {
     marginTop: spacing.lg,
     backgroundColor: colors.mint,
