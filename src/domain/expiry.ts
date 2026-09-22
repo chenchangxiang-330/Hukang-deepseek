@@ -5,41 +5,10 @@
  */
 
 import { ExpiryStatus } from './types';
+import { parseLocalDate, toLocalDateString } from './dates';
 
-/** 取本地日期的 YYYY-MM-DD（不要用 toISOString，那是 UTC，会跨日错位） */
-export function toLocalDateString(date: Date = new Date()): string {
-  const y = date.getFullYear();
-  const m = `${date.getMonth() + 1}`.padStart(2, '0');
-  const d = `${date.getDate()}`.padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-export function toLocalTimeString(date: Date = new Date()): string {
-  const h = `${date.getHours()}`.padStart(2, '0');
-  const m = `${date.getMinutes()}`.padStart(2, '0');
-  return `${h}:${m}`;
-}
-
-const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-export function parseLocalDate(value: string | null | undefined): Date | null {
-  if (!value) return null;
-  const match = DATE_PATTERN.exec(value.trim());
-  if (!match) return null;
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const date = new Date(year, month - 1, day);
-  // 拒绝 2026-02-31 这类被 Date 自动进位的非法日期
-  if (
-    date.getFullYear() !== year ||
-    date.getMonth() !== month - 1 ||
-    date.getDate() !== day
-  ) {
-    return null;
-  }
-  return date;
-}
+// 日期基础工具统一放在 dates.ts，这里只做保质期语义的计算
+export { parseLocalDate, toLocalDateString, toLocalTimeString } from './dates';
 
 /** 相差的整天数：expiry - today。今天到期 = 0，昨天到期 = -1 */
 export function daysUntil(expiryDate: string | null | undefined, today: Date = new Date()): number | null {

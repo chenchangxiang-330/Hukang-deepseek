@@ -1,6 +1,6 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
+# 依赖
 node_modules/
 
 # Expo
@@ -9,7 +9,23 @@ dist/
 web-build/
 expo-env.d.ts
 
-# Native
+# 构建产物（§56：禁止提交）
+.gradle/
+android/.gradle/
+android/**/build/
+android/build/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+local.properties
+
+# 原生生成目录（CNG：由 app.json + config plugin 生成，不入库）
+/ios
+/android
+
+# 原生签名与凭据
 .kotlin/
 *.orig.*
 *.jks
@@ -17,25 +33,25 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+*.pem
 
-# Metro
-.metro-health-check*
+# 环境变量与密钥（§39：API Key 绝不入库）
+.env
+.env*.local
+secrets.json
 
-# debug
+# 运行时临时数据：拍摄的食品图片、日志、调试导出
+food-images/
+*.log
 npm-debug.*
 yarn-debug.*
 yarn-error.*
 
+# Metro
+.metro-health-check*
+
 # macOS
 .DS_Store
-*.pem
 
-# local env files
-.env*.local
-
-# typescript
+# TypeScript
 *.tsbuildinfo
-
-# generated native folders
-/ios
-/android
