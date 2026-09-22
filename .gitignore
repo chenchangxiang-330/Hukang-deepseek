@@ -9,11 +9,13 @@ dist/
 web-build/
 expo-env.d.ts
 
-# 构建产物（§56：禁止提交）
+# 构建产物（禁止提交）
 .gradle/
 android/.gradle/
+android/.kotlin/
 android/**/build/
 android/build/
+android/app/.cxx/
 # 本地原生模块（modules/ 下）的构建产物
 modules/*/android/build/
 modules/*/android/.gradle/
@@ -24,9 +26,13 @@ modules/*/android/.gradle/
 *.class
 local.properties
 
-# 原生生成目录（CNG：由 app.json + config plugin 生成，不入库）
+# iOS 原生生成目录（CNG 生成，本项目当前只做 Android）
+#
+# 注意：android/ **故意不忽略**。
+# 它是 CNG 生成目录，但交接版特意把源码保留下来（见 DECISIONS.md D016），
+# 这样接手方 git clone 之后不需要先跑 expo prebuild 就能直接 ./gradlew 构建。
+# 它的构建产物已在上面单独忽略。
 /ios
-/android
 
 # 原生签名与凭据
 .kotlin/
