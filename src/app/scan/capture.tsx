@@ -8,7 +8,14 @@
  * 也支持从相册导入同一套 pipeline，保证没有真机时识别链仍可被测（§59）。
  */
 
-import { CameraView, useCameraPermissions, type FlashMode } from 'expo-camera';
+import {
+  Camera,
+  CameraView,
+  useCameraPermissions,
+  type BarcodeScanningResult,
+  type BarcodeType,
+  type FlashMode,
+} from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
@@ -23,6 +30,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { KangKang } from '@/components/KangKang';
+import { SUPPORTED_BARCODE_TYPES } from '@/domain/barcode';
 import { getScanTaskDefinition } from '@/domain/scanTasks';
 import { HuKangError, ScanTask, toHuKangError } from '@/domain/errors';
 import { persistImage } from '@/services/media/imageStore';
@@ -47,9 +55,31 @@ export default function CaptureScreen() {
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
 
+  const isBarcodeTask = task === 'barcode';
+  /** 防止连续回调重复跳转 */
+  const handledRef = useRef(false);
+
   const [busy, setBusy] = useState(false);
   const [flash, setFlash] = useState<FlashMode>('off');
   const [error, setError] = useState<HuKangError | null>(null);
+
+  /** 扫码命中后统一走查询页（§19 的第一步） */
+  const goToBarcodeResult = useCallback(
+    (raw: string, type: string | undefined) => {
+      if (handledRef.current) return;
+      handledRef.current = true;
+      router.replace({ pathname: '/scan/barcode-result', params: { raw, type: type ?? '' } });
+    },
+    [router],
+  );
+
+  const handleBarcodeScanned = useCallback(
+    (scan: BarcodeScanningResult) => {
+      if (!scan?.data) return;
+      goToBarcodeResult(scan.data, scan.type);
+    },
+    [goToBarcodeResult],
+  );
 
   /** 采集成功后统一交给结果页，参数只传字符串 */
   const goToResult = useCallback(
@@ -140,13 +170,35 @@ export default function CaptureScreen() {
         prefix: `${task}-import`,
       });
 
+      // 条码任务：从图片里解码条码，走与他人相同的查询链路。
+      // 这条路径让没有真机时也能用图片验证扫码逻辑（§59）。
+      if (isBarcodeTask) {
+        const found = await Camera.scanFromURLAsync(stored.uri, [
+          ...SUPPORTED_BARCODE_TYPES,
+        ] as BarcodeType[]);
+
+        const first = found.find((r) => !!r?.data);
+        if (!first) {
+          throw new HuKangError('BARCODE_NOT_DETECTED', {
+            task,
+            technical: {
+              message: '导入的图片里没有识别到条形码',
+              fileUri: stored.uri,
+              fileSize: stored.size,
+            },
+          });
+        }
+        goToBarcodeResult(first.data, first.type);
+        return;
+      }
+
       goToResult(stored.uri, stored.size, stored.width, stored.height);
     } catch (err) {
       setError(toHuKangError(err, 'PHOTO_FILE_INVALID', task));
     } finally {
       setBusy(false);
     }
-  }, [busy, goToResult, task]);
+  }, [busy, goToBarcodeResult, goToResult, isBarcodeTask, task]);
 
   // ---------- 权限 ----------
   if (!permission) {
@@ -189,6 +241,16 @@ export default function CaptureScreen() {
   }
 
   // ---------- 采集 ----------
+  // 只有条码任务才开启扫码监听，避免其它任务被误触发跳转
+  const barcodeProps = isBarcodeTask
+    ? {
+        barcodeScannerSettings: {
+          barcodeTypes: [...SUPPORTED_BARCODE_TYPES] as BarcodeType[],
+        },
+        onBarcodeScanned: handleBarcodeScanned,
+      }
+    : {};
+
   return (
     <View style={styles.screen}>
       <CameraView
@@ -197,12 +259,24 @@ export default function CaptureScreen() {
         facing="back"
         flash={flash}
         mode="picture"
+        {...barcodeProps}
       />
+
+      {/* 条码模式：给一个取景框，帮助用户把条纹放正 */}
+      {isBarcodeTask ? (
+        <View pointerEvents="none" style={styles.scanFrameWrap}>
+          <View style={styles.scanFrame} />
+        </View>
+      ) : null}
 
       {/* 顶部：拍摄提示（§18 的提示语在真实取景时再出现一次） */}
       <View style={[styles.topBar, { paddingTop: insets.top + spacing.md }]}>
         <View style={styles.hintPill}>
-          <Text style={styles.hintText}>{definition?.hint ?? '把要识别的内容放进取景框。'}</Text>
+          <Text style={styles.hintText}>
+            {isBarcodeTask
+              ? '把条形码放进框里，会自动识别。'
+              : definition?.hint ?? '把要识别的内容放进取景框。'}
+          </Text>
         </View>
       </View>
 
@@ -225,19 +299,33 @@ export default function CaptureScreen() {
             <Text style={styles.sideButtonText}>相册</Text>
           </Pressable>
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="拍照"
-            onPress={handleCapture}
-            disabled={busy}
-            style={({ pressed }) => [
-              styles.shutter,
-              pressed && { opacity: 0.75 },
-              busy && { opacity: 0.45 },
-            ]}
-          >
-            {busy ? <ActivityIndicator color={colors.mintDark} /> : <View style={styles.shutterInner} />}
-          </Pressable>
+          {isBarcodeTask ? (
+            <View style={styles.scanIndicator}>
+              {busy ? (
+                <ActivityIndicator color={colors.textInverse} />
+              ) : (
+                <Text style={styles.scanIndicatorText}>识别中</Text>
+              )}
+            </View>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="拍照"
+              onPress={handleCapture}
+              disabled={busy}
+              style={({ pressed }) => [
+                styles.shutter,
+                pressed && { opacity: 0.75 },
+                busy && { opacity: 0.45 },
+              ]}
+            >
+              {busy ? (
+                <ActivityIndicator color={colors.mintDark} />
+              ) : (
+                <View style={styles.shutterInner} />
+              )}
+            </Pressable>
+          )}
 
           <Pressable
             accessibilityRole="button"
@@ -343,4 +431,31 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.mintLine,
   },
+
+  scanFrameWrap: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scanFrame: {
+    width: '78%',
+    height: 150,
+    borderRadius: radii.lg,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  scanIndicator: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scanIndicatorText: { color: colors.textInverse, fontSize: 13, fontWeight: '500' },
 });

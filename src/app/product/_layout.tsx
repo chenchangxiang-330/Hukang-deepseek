@@ -2,7 +2,7 @@ import { Stack } from 'expo-router';
 
 import { colors } from '@/theme';
 
-export default function ScanLayout() {
+export default function ProductLayout() {
   return (
     <Stack
       screenOptions={{
@@ -13,10 +13,8 @@ export default function ScanLayout() {
         contentStyle: { backgroundColor: colors.background },
       }}
     >
-      <Stack.Screen name="index" options={{ title: '扫一扫' }} />
-      <Stack.Screen name="capture" options={{ title: '' }} />
-      <Stack.Screen name="result" options={{ title: '识别结果' }} />
-      <Stack.Screen name="barcode-result" options={{ title: '商品查询' }} />
+      <Stack.Screen name="[id]" options={{ title: '商品' }} />
+      <Stack.Screen name="create" options={{ title: '手动创建商品' }} />
     </Stack>
   );
 }

@@ -92,15 +92,26 @@ source ../.dsh-cache/env.sh    # 见下方说明
 
 ```bash
 npx tsc --noEmit                 # 类型检查
-npm test                         # 单元测试
+npm test                         # 单元测试（离线，不依赖网络）
+npm run test:integration         # 集成测试（真实访问 Open Food Facts）
+
 npx expo start                   # 开发服务器
 
 # Android 本地构建（优先用项目自己的 gradlew）
 npx expo prebuild --platform android     # 由 app.json + config plugin 生成 android/
-cd android && ./gradlew assembleDebug    # 产出 debug APK
+cd android && ./gradlew assembleDebug    # debug APK（需配合 Metro 运行）
+cd android && ./gradlew assembleRelease  # release APK（内嵌 JS bundle，装上即可独立运行）
 ```
 
-APK 位置：`android/app/build/outputs/apk/debug/app-debug.apk`
+APK 位置：
+
+| 产物 | 路径 | 说明 |
+| --- | --- | --- |
+| debug | `android/app/build/outputs/apk/debug/app-debug.apk` | 需同时运行 `npx expo start` |
+| release | `android/app/build/outputs/apk/release/app-release.apk` | 内嵌 bundle，直接安装可用 |
+
+> release 目前使用模板自带的 debug keystore 签名（RN/Expo 模板默认行为），
+> 仅供内部测试；正式发布必须换成自己的 keystore。
 
 > `android/` 与 `ios/` 是 CNG 生成目录，已加入 `.gitignore`，
 > 不要手工修改；原生行为一律通过 `app.json` 与 config plugin 配置。
