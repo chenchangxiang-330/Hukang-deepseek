@@ -68,6 +68,14 @@ Parser、API、SQLite 或网络数据源。
 
 ## 环境要求
 
+> ⚠️ **本机已不再安装 Android SDK 与 Android Studio**（由用户主动删除，改为云端构建）。
+> 如果你只是想打一个可安装的 APK，**请直接看 [`CLOUD_BUILD.md`](./CLOUD_BUILD.md)**，
+> 不需要在本机装任何 Android 工具链。
+>
+> 本机做开发/测试只需要 **Node.js + npm**：
+> `npx tsc --noEmit`、`npm test`、`npx expo prebuild` 都不需要 Android SDK
+> （prebuild 已实测可在无 SDK 环境下运行，且结果可逐字节复现）。
+
 ### 通用要求
 
 | 项 | 要求 |
@@ -153,8 +161,12 @@ npx expo start
 
 ## Android 构建方法
 
+> **本机没有 Android SDK，下面的本地构建跑不了。** 请用云构建：见 [`CLOUD_BUILD.md`](./CLOUD_BUILD.md)。
+> 以下步骤留作参考（例如换到有 SDK 的机器上时）。
+
 ```bash
 # 1) 生成 / 更新原生工程（改了 app.json 或 config plugin 后必须重新跑）
+#    这一步不需要 Android SDK，本机可以直接跑
 npx expo prebuild --platform android
 
 # 2) 构建 debug APK（不含 JS bundle，需要配合 npx expo start 运行）
@@ -179,9 +191,20 @@ npx expo prebuild --platform android --clean
 
 ## APK 构建方法（可直接安装到手机）
 
+> **本机没有 Android SDK，无法本地构建 APK。**
+> 用云端构建，见 [`CLOUD_BUILD.md`](./CLOUD_BUILD.md)：
+>
+> ```bash
+> npx eas-cli@latest build --platform android --profile preview   # EAS Build（推荐）
+> ```
+>
+> 或者在 GitHub 仓库的 Actions 页面手动触发 `Build Android APK` 工作流。
+>
+> 以下本地步骤留作参考（换到有 SDK 的机器上时用）。
+
 ```bash
 cd 护康
-source ../.dsh-cache/env.sh          # 仅本机需要，见「环境要求」
+source ../.dsh-cache/env.sh          # 仅这台开发机需要，见「环境要求」
 
 npx expo prebuild --platform android --clean --no-install
 cd android
@@ -344,6 +367,7 @@ $ANDROID_HOME/build-tools/36.0.0/apksigner verify \
 | `TEST_REPORT.md` | 测试报告（严格区分 PASS / NOT TESTED） |
 | `CHANGELOG.md` | 版本变更记录 |
 | `FINAL_DELIVERY.md` | 交付信息：APK、签名、版本、Secrets 方法 |
+| `CLOUD_BUILD.md` | **云端构建指南**（EAS Build / GitHub Actions，本机已无 Android SDK） |
 | `docs/expo-sdk-57-api-reference.md` | 已核实的 Expo SDK 57 API |
 
 ---

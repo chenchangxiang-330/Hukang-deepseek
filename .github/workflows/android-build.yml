@@ -1,0 +1,90 @@
+# 云端构建 Android APK（GitHub Actions 方案）
+#
+# 与 EAS Build 的区别：
+#   - 不需要 Expo 账号，只要有 GitHub 仓库即可
+#   - 用 GitHub 免费额度（公开仓库不限，私有仓库每月 2000 分钟）
+#   - 完全用仓库里已有的 android/ 工程构建，签名沿用 android/app/debug.keystore
+#     → 与本地构建出的 APK 签名一致，可以直接覆盖安装
+#
+# 用法：
+#   1. 把项目推到 GitHub
+#   2. 在仓库的 Actions 页面手动触发（workflow_dispatch），或向 master 推送
+#   3. 构建完成后在 Actions 运行详情页下载 Artifact
+#
+# 详细说明见 CLOUD_BUILD.md
+
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: '构建类型'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - debug
+  push:
+    branches:
+      - master
+      - main
+
+jobs:
+  build-apk:
+    name: 构建 APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: 安装 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 准备 Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 类型检查
+        run: npx tsc --noEmit
+
+      - name: 单元测试
+        run: npm test
+
+      # 注意：本仓库把 expo prebuild 生成的 android/ 一起提交了，
+      # 所以这里不需要再跑 npx expo prebuild，直接用仓库里的工程构建。
+      # 如果将来改成 CNG（把 /android 加回 .gitignore），
+      # 请在这里补一步：npx expo prebuild --platform android --clean
+      - name: 构建 APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --console=plain
+
+      - name: 校验 APK
+        run: |
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          ls -lh "$APK"
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | tail -1)
+          "$BT/aapt2" dump badging "$APK" | head -5
+          "$BT/apksigner" verify --print-certs "$APK"
+
+      - name: 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: HuKang-APK-${{ github.sha }}
+          path: android/app/build/outputs/apk/release/*.apk
+          retention-days: 30

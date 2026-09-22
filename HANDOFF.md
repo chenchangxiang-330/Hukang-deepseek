@@ -146,16 +146,25 @@ npx tsc --noEmit                # 应零错误
 npm test                        # 应 141 通过 / 2 跳过
 ```
 
-如果构建 Android：
+### 第 2 步：要构建 APK 就去云端
+
+**本机已删除 Android SDK 与 Android Studio**，本地跑不了 `./gradlew`。
+构建 APK 请走云端，完整说明见 **`CLOUD_BUILD.md`**：
 
 ```bash
-cd android && ./gradlew assembleRelease
+npx eas-cli@latest build --platform android --profile preview    # EAS Build（推荐）
 ```
 
-> 本机（yangbing 的 Mac）有沙箱限制，构建前需要 `source ../.dsh-cache/env.sh`。
-> 换到普通电脑上不需要。见 `README.md` 的「环境要求」。
+或者把仓库推到 GitHub，在 Actions 页面触发 `Build Android APK` 工作流
+（配置文件 `.github/workflows/android-build.yml` 已就绪）。
 
-### 第 2 步：等真机反馈，或按下面优先级推进
+> `eas.json` 与工作流都已配好，只差你的 Expo 账号 / GitHub 仓库。
+> **两条路线都还没有实跑验证过**——详见 `CLOUD_BUILD.md` 第 0.2 节。
+
+本机仍然可以做的（不需要 Android SDK）：
+`npx tsc --noEmit` · `npm test` · `npm run test:integration` · `npx expo prebuild`
+
+### 第 3 步：等真机反馈，或按下面优先级推进
 
 **如果用户给了真机反馈** → 优先修 `BUGS.md` 里被证实的问题，
 尤其是 HK-001（品牌提取）与 HK-002（营养表行列对齐）。

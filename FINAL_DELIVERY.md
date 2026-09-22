@@ -277,36 +277,48 @@ git status
 
 ## 9. 从新电脑恢复项目
 
+> **只想改代码 / 打 APK 的话，不需要装 JDK 与 Android SDK。**
+> 本机已删除 Android SDK 与 Android Studio，改用云端构建 —— 见 `CLOUD_BUILD.md`。
+> 下面分「只开发」和「要本地构建」两种情况。
+
+### 情况 A：只做开发与云构建（推荐，无需 Android 工具链）
+
 ```bash
-# ---- 1. 装工具（只需一次）----
-# Node.js 20+ / npm 10+
-# JDK 17
-# Android SDK：platform-tools + platforms;android-36 + build-tools;36.0.0
+# 1) 装 Node.js 20+ / npm 10+（唯一必需的）
+node -v && npm -v
 
-export JAVA_HOME=$(/usr/libexec/java_home -v 17)          # macOS
-export ANDROID_HOME=$HOME/Library/Android/sdk
-export ANDROID_SDK_ROOT=$ANDROID_HOME
-
-# ---- 2. 恢复依赖 ----
+# 2) 恢复依赖
 cd 护康
 npm ci                       # 依据 package-lock.json，约 497 个包
 
-# ---- 3. 验证 ----
+# 3) 验证（全部不需要 Android SDK）
 npx tsc --noEmit             # 零错误
 npm test                     # 141 通过 / 2 跳过
 npm run test:integration     # 14 通过（需联网）
+npx expo prebuild --platform android   # 需要时重新生成原生工程
 
-# ---- 4. 构建 APK ----
-cd android && ./gradlew assembleRelease
-cp app/build/outputs/apk/release/app-release.apk \
-   ../releases/android/current/HuKang-1.0.0.apk
+# 4) 打 APK：走云端
+npx eas-cli@latest build --platform android --profile preview
+```
+
+### 情况 B：要在本机跑 gradle 构建
+
+```bash
+# 额外需要（只需一次）
+# JDK 17
+export JAVA_HOME=$(/usr/libexec/java_home -v 17)          # macOS
+# Android SDK：platform-tools + platforms;android-36 + build-tools;36.0.0
+export ANDROID_HOME=$HOME/Library/Android/sdk
+export ANDROID_SDK_ROOT=$ANDROID_HOME
+
+cd 护康/android && ./gradlew assembleRelease
 ```
 
 `android/` 目录**已在交付版中保留源码**，所以不需要先跑 `expo prebuild`。
-若该目录被删或修改过 `app.json`，重新生成：
+若该目录被删或修改过 `app.json`，重新生成（这一步不需要 Android SDK）：
 
 ```bash
-npx expo prebuild --platform android
+npx expo prebuild --platform android --clean
 ```
 
 首次构建会自动下载 Gradle 9.3.1（约 145MB）与依赖（约 1GB），
