@@ -8,13 +8,14 @@
 import Constants from 'expo-constants';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { countProducts } from '@/db/repositories/productRepo';
 import { getDatabase } from '@/db/database';
 import { getMetaBoolean, META_KEYS, setMetaBoolean } from '@/db/repositories/metaRepo';
 import { countLogs } from '@/db/repositories/nutritionLogRepo';
+import { isOnlineVisionAllowed, setOnlineVisionAllowed } from '@/services/vision/consent';
 import { colors, radii, spacing, typography } from '@/theme';
 
 const DEVELOPER_TAP_COUNT = 7;
@@ -30,6 +31,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const [counts, setCounts] = useState<Counts | null>(null);
   const [developerMode, setDeveloperMode] = useState(false);
+  const [onlineVision, setOnlineVision] = useState(false);
   const [tapHint, setTapHint] = useState<string | null>(null);
   const tapCount = useRef(0);
   const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -47,6 +49,7 @@ export default function ProfileScreen() {
       setCounts(null);
     }
     setDeveloperMode(await getMetaBoolean(META_KEYS.developerMode));
+    setOnlineVision(await isOnlineVisionAllowed());
   }, []);
 
   useFocusEffect(
@@ -103,6 +106,27 @@ export default function ProfileScreen() {
         <Text style={styles.cardFootnote}>
           {counts == null ? '数据暂时读取失败。' : '全部保存在本机，不需要账号。'}
         </Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardHeader}>识别设置</Text>
+        <View style={styles.switchRow}>
+          <View style={styles.switchText}>
+            <Text style={styles.aboutLabel}>联网增强识别</Text>
+            <Text style={styles.cardFootnote}>
+              本地识别不足时，允许上传当前食品图片用于识别。默认关闭，随时可以改。
+            </Text>
+          </View>
+          <Switch
+            value={onlineVision}
+            onValueChange={async (next) => {
+              setOnlineVision(next);
+              await setOnlineVisionAllowed(next);
+            }}
+            trackColor={{ true: colors.mintLine, false: colors.border }}
+            thumbColor={onlineVision ? colors.mint : colors.surface}
+          />
+        </View>
       </View>
 
       <View style={styles.card}>
@@ -186,4 +210,12 @@ const styles = StyleSheet.create({
   aboutLabel: { ...typography.body, color: colors.text },
   aboutValue: { ...typography.body, color: colors.textSecondary },
   tapHint: { ...typography.caption, color: colors.mintDark },
+
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.lg,
+  },
+  switchText: { flex: 1, gap: spacing.xs },
 });

@@ -14,6 +14,9 @@ expo-env.d.ts
 android/.gradle/
 android/**/build/
 android/build/
+# 本地原生模块（modules/ 下）的构建产物
+modules/*/android/build/
+modules/*/android/.gradle/
 *.apk
 *.aab
 *.ap_

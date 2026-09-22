@@ -84,6 +84,12 @@ export default function CaptureScreen() {
   /** 采集成功后统一交给结果页，参数只传字符串 */
   const goToResult = useCallback(
     (uri: string, size: number, width: number | null, height: number | null) => {
+      // 拍商品走完整的“质量检查 → 条码 → OCR → 搜索”流程（§23）
+      if (task === 'product_photo') {
+        router.replace({ pathname: '/scan/product-result', params: { uri } });
+        return;
+      }
+
       router.replace({
         pathname: '/scan/result',
         params: {

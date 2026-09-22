@@ -28,15 +28,42 @@
 src/
   app/                     Expo Router 路由（每个文件就是一个页面）
     (tabs)/                今日 / 库存 / 我的
-    scan/                  扫一扫：index（五种入口）· capture · result
+    scan/                  扫一扫：index · capture · result · barcode-result · product-result
+    product/               商品详情 · 手动创建
     dev.tsx                开发者选项（需连续点击版本号 7 次开启）
-  components/              康康吉祥物、五种扫描示意图
+  components/              康康吉祥物、五种扫描示意图、商品信息展示
   db/                      SQLite：schema、database、repositories
-  domain/                  领域模型与纯函数（营养计算、保质期、日期、错误分类）
-  services/                图片落盘与文件校验等
+  domain/                  领域模型与纯函数（条码、营养、保质期、日期、错误分类）
+  services/
+    barcode/               查询链编排、候选落库
+    providers/             联网数据源（Open Food Facts / Wikidata，可插拔）
+    network/               HTTP 基础层（传输失败与 HTTP 状态分开处理）
+    vision/                图片质量判定、OCR 包装、商品身份提取、识别编排、联网授权
+    media/                 图片落盘与文件校验
   theme/                   颜色、间距、字号
+modules/
+  hukang-vision/           本地 Kotlin 原生模块（ML Kit 中文 OCR + 图片质量度量）
 docs/                      Expo SDK 57 API 核实记录
 ```
+
+## 本地原生模块 hukang-vision
+
+用 ML Kit **bundled 中文模型**，装好即可**离线**识别中文食品标签（§32）。
+
+| 方法 | 返回 |
+| --- | --- |
+| `recognizeText(uri)` | `{ text, width, height, blocks[] }`，每个文本块带 `boundingBox` |
+| `analyzeQuality(uri)` | `{ brightness, blurScore, glareRatio, darkRatio }` |
+
+分层原则（§32 明确要求）：原生侧**只到 OCR Raw Text**，
+解析成语义化字段全部在 TypeScript 侧完成，这样解析规则可以用单元测试覆盖、
+也能随时调整而不用重新编译原生代码。
+
+图片质量只返回**客观指标**，阈值与“该给用户什么建议”放在
+`src/services/vision/imageQuality.ts`，同样是可测试的纯函数。
+
+> 当前阶段没有接入任何在线视觉模型。`FoodVisionProvider` 接口（§36）与联网授权
+> （§37）已经落地，接入具体厂商时 UI 不需要改动。
 
 ## 三个核心概念严格分离
 
@@ -130,8 +157,8 @@ APK 位置：
 
 | 阶段 | 内容 | 状态 |
 | --- | --- | --- |
-| Phase 1 | 项目骨架 · Navigation · SQLite · Camera · 图片导入 | 进行中 |
-| Phase 2 | 条形码 · 本地商品库 · 联网 Barcode Lookup | 未开始 |
-| Phase 3 | 拍商品 · Vision · OCR · 商品搜索 · 候选商品 | 未开始 |
-| Phase 4 | 营养成分表 OCR · Nutrition Parser | 未开始 |
+| Phase 1 | 项目骨架 · Navigation · SQLite · Camera · 图片导入 | 已完成 |
+| Phase 2 | 条形码 · 本地商品库 · 联网 Barcode Lookup | 已完成 |
+| Phase 3 | 拍商品 · 本地 OCR · 图片质量 · 商品身份提取 · 商品搜索 · 候选商品 | 已完成 |
+| Phase 4 | 营养成分表 OCR · Nutrition Parser | 进行中 |
 | Phase 5–8 | 配料表 · 日期/库存/通知 · 营养记录/历史 · 视觉统一 | 未开始 |

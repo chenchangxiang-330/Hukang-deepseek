@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- 本模块只读取 App 私有目录里的图片，不需要额外权限：
+       相机权限由 expo-camera 声明，相册由系统照片选择器处理。 -->
+</manifest>
