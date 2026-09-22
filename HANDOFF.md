@@ -1,205 +1,205 @@
-# HuKang / 护康 — 交接说明
+# 护康 HuKang — 交接说明
 
-项目：**HuKang-DeepSeek**（独立于 Codex 版 HuKang 的全新实现，两者完全隔离）
-当前阶段：**Phase 1～4 已完成并构建，等待真机验收**
+> **给接手的 AI / 开发者**：假设你拿到的只有这个 `护康/` 文件夹，
+> 之前的所有对话记录都已删除。这份文档告诉你现在在哪、下一步做什么。
+
+当前状态：**Phase 1～4 功能实现完成，已构建可安装 APK，等待真机验收。**
 
 ---
 
-## 1. 本轮交付物
+## 1. 当前做到哪里
 
-| 项 | 值 |
+| 阶段 | 内容 | 状态 |
+| --- | --- | --- |
+| Phase 1 | 项目骨架 · Navigation · SQLite · Camera · 图片导入 | ✅ 已完成 |
+| Phase 2 | 条形码 · 本地商品库 · 联网 Barcode Lookup | ✅ 已完成 |
+| Phase 3 | 拍商品 · 本地 OCR · 图片质量 · 商品身份提取 · 商品搜索 · 候选商品 | ✅ 已完成 |
+| Phase 4 | 营养成分表 OCR · Nutrition Parser · 用户确认 | ✅ 已完成 |
+| Phase 5 | 配料表 OCR + Ingredients Parser | ⬜ 未开始 |
+| Phase 6 | 日期识别 · 库存 · 临期通知 | ⬜ 未开始 |
+| Phase 7 | NutritionLog · 首页营养可视化 · 历史 ·「如果吃下它」 | ⬜ 未开始 |
+| Phase 8 | 启动页 · 康康 · 视觉统一 | ⬜ 未开始 |
+
+**本轮只做 Phase 1～4，已按用户要求停止开发，等待真机反馈。**
+
+---
+
+## 2. 已完成什么（可运行的代码）
+
+### 能跑通的完整链路
+
+```
+条形码：Camera → Barcode → normalizeBarcode() → SQLite
+                                      ↓ 未命中
+                              Open Food Facts → 候选 → 用户确认 → 落库
+
+拍商品：Photo → 质量检查 → 图片内条码 → OCR → 身份提取 → 联网搜索 → 候选
+
+营养表：Photo → 质量检查 → OCR → Nutrition Parser → 用户可编辑确认 → 保存
+```
+
+### 具体交付
+
+- **导航**：Expo Router，底部三 tab（今日 / 库存 / 我的）+ 完整 Stack
+- **SQLite**：三概念分离（products / inventory_items / nutrition_logs）+ app_meta，
+  含 `PRAGMA user_version` 迁移框架
+- **相机**：权限处理（含拒绝后跳系统设置）、闪光灯、相册导入、图片文件硬校验
+- **原生模块** `modules/hukang-vision`：ML Kit 中文 OCR（bundled、可离线）
+  + 图片质量度量（亮度 / 拉普拉斯方差 / 反光比 / 过暗比）
+- **条形码**：EAN-13 / EAN-8 / UPC-A / UPC-E，GTIN 校验位实算，UPC-E 展开
+- **联网数据源**：Open Food Facts v2 / v3 / 关键词搜索 + Wikidata，可插拔架构
+- **商品身份提取**：brand / product_name / flavor / quantity / category / barcode
+- **营养解析器**：基准、单位、全角字符、包含关系陷阱、上限写法全部处理
+- **用户确认页**：解析结果可编辑，高亮需确认项，显示每项来源行
+- **开发者选项**：版本号连点 7 次开启，可看 SQLite 表与错误码
+
+### 测试
+
+- 单元测试 **141 通过 / 2 跳过**（离线）
+- 集成测试 **14 通过**（真实联网 Open Food Facts）
+- TypeScript strict 零错误
+- Android debug + release 双构建通过
+
+---
+
+## 3. 未完成什么
+
+### 未实现的 Phase 5～8
+
+见 `PROJECT_SPEC.md` 第 7 节「已确定但尚未完成的需求」——**需求已经写明，不要重新发明**。
+
+### 明确未接入的能力
+
+| 项 | 说明 |
 | --- | --- |
-| **APK 绝对路径** | `/Users/yangbing/Ai/deepseek/软件开发/HuKang-DeepSeek/apk/HuKang-DeepSeek-Phase4.apk` |
-| 包名 | `com.hukang.deepseek` |
-| 版本 | versionName `1.0.0` / versionCode `1` |
-| 大小 | 180,786,227 字节（约 172 MB） |
-| SHA-256 | `9d14a72dde06f078dad48d6971afeb60c0e2c353c48d16b74007bd2da714e4a5` |
-| 签名 | APK Signature Scheme v2 有效（证书 `CN=Android Debug`） |
-
-> 这个 APK 是 **release 构建**，**已内嵌 JS bundle**，不需要连电脑、不需要 Metro，
-> 拷到手机上点开就能装、装上就能跑。
->
-> 用的签名是 React Native 模板自带的 debug keystore。它能正常安装，
-> 只适合内部测试。**包名不变的情况下，后续换正式签名必须先卸载旧版再装。**
+| 在线视觉模型 | `FoodVisionProvider` 接口 + 联网授权文案/开关都已落地，**但没接任何厂商**（需要 API Key）。当前识别 100% 本地。 |
+| 点击对焦 | expo-camera SDK 57 未暴露该 API，需要自写 CameraX 原生模块 |
+| iOS | 原生模块只在 Android 实现 |
+| ABI 拆分 | APK 172MB，可降到 60～70MB |
 
 ---
 
-## 2. 安装步骤
+## 4. 哪些没有真机测试（最重要的一节）
 
-1. 把 `HuKang-DeepSeek-Phase4.apk` 传到手机（数据线 / 网盘 / 微信文件传输均可）
-2. 手机上点开该文件
-3. 系统会提示"未知来源应用" → 允许该来源安装（不同品牌路径不同，
-   一般在「设置 → 安全 → 安装未知应用」）
-4. 安装完成后桌面会出现 **护康**
+**下面这些东西一项都没有在真实 Android 手机上验证过。**
 
-首次进入「扫一扫」时系统会申请**相机权限**，需要允许，否则拍不了照。
+代码写完、类型通过、构建成功，**都不等于功能可用**。
+完整清单见 `TEST_REPORT.md`，核心是：
 
-APK 体积偏大的原因：包含 4 个 CPU 架构的原生库 + ML Kit 中文 OCR 模型（约 40MB）。
-真机通常只需要 arm64-v8a，将来做 ABI 拆分可以显著减小。
+| 类别 | 状态 |
+| --- | --- |
+| 真实摄像头预览与拍照 | `NOT TESTED ON PHYSICAL DEVICE` |
+| 近距离自动对焦（食品标签小字） | `NOT TESTED ON PHYSICAL DEVICE` |
+| 包装反光 / 过暗 / 过曝 | `NOT TESTED ON PHYSICAL DEVICE` |
+| ML Kit 中文 OCR 对真实包装的效果 | `NOT TESTED ON PHYSICAL DEVICE` |
+| 实拍营养成分表的识别准确率 | `NOT TESTED ON PHYSICAL DEVICE` |
+| 实际扫码速度与成功率 | `NOT TESTED ON PHYSICAL DEVICE` |
+| 图片质量阈值是否合理（**未标定**） | `NOT TESTED ON PHYSICAL DEVICE` |
+| 拍商品五步链路的设备端表现 | `NOT TESTED ON PHYSICAL DEVICE` |
+| 不同品牌手机的 Camera 行为差异 | `NOT TESTED ON PHYSICAL DEVICE` |
+| SQLite 增删改查实际执行 | `NOT TESTED` |
+| 导航跳转 / 返回栈 / Android 返回键 | `NOT TESTED` |
+| 商品落库与商品图下载 | `NOT TESTED` |
+| 页面渲染、中文显示、康康造型 | `NOT TESTED` |
+| 安装 / 启动 / 是否闪退 | `NOT TESTED` |
+
+此外，**真实包装照片 fixture 采集失败**（图片主机不可达），
+所以营养解析器**只在人工构造的标签文本上验证过**，
+`realLabels.test.ts` 的 2 个用例处于跳过状态。
 
 ---
 
-## 3. 请重点验证的功能（按优先级）
+## 5. 当前最重要的问题
 
-按产品优先级「真实可用 > 识别可靠 > 数据正确 > 操作简单 > UI > 功能数量」排序：
+按优先级排序。详细记录（含复现步骤与期望结果）见 `BUGS.md`。
 
-### 3.1 最优先：识别链是否真的能用
-
-| # | 操作 | 期望 |
+| # | 问题 | 为什么重要 |
 | --- | --- | --- |
-| 1 | 扫一扫 → **商品条形码** → 对准真实商品条码 | 自动识别并跳到查询页；本地没有则自动联网；查到候选后点「就是这个」能存进商品库 |
-| 2 | 再扫**同一个**条码 | 应直接命中本地，**不再联网**（可开飞行模式验证） |
-| 3 | 扫一扫 → **拍商品** → 拍完整包装正面 | 能看到五步进度（检查照片/找条码/读文字/理解商品/联网搜索），最后给出候选商品 |
-| 4 | 扫一扫 → **营养成分表** → 拍完整营养表 | 能读出各项数值，界面上可以逐项修改，确认后保存 |
-| 5 | 「我的」→ 本机数据 | 商品/库存/记录数量随上面的操作增长 |
+| 1 | **HK-001 品牌名启发式提取可能严重出错** | 品牌错了 → 搜索关键词错 → 候选商品全错。「净含量」这类文字很可能被误认成品牌 |
+| 2 | **HK-002 OCR 丢失营养表行列对齐** | 解析器没有真正用 `boundingBox` 做行列匹配。**数值错位会被用户当真存进库**，是最严重的数据正确性风险 |
+| 3 | **HK-005 ML Kit 对真实包装的效果完全未知** | 整个识别链的地基，没测过 |
+| 4 | **HK-004 图片质量阈值未标定** | 当前是工程经验值，很可能误报/漏报 |
+| 5 | **HK-003 拍照后可能卡顿** | 大图降采样 + OCR 耗时未测 |
+| 6 | **HK-009 Open Food Facts 会限流** | 已正确降级，但没有节流/退避 |
 
-### 3.2 重点观察：识别质量
-
-- 营养成分表能不能读出**中文项目名**（能量/蛋白质/脂肪/碳水化合物/钠）
-- **添加糖、总糖**这两项：包装没标的，界面上必须显示「未记录」，
-  **绝不能显示 0**
-- **钠**的单位是不是 mg（标签上常写 mg，我们存 mg）
-- 基准是否正确识别为「每 100g」还是「每 100mL」
-
-### 3.3 相机稳定性（P0）
-
-- 近距离拍小字能不能对上焦
-- 包装反光时有没有提示（「包装反光较强，换个角度试试。」）
-- 光线暗时有没有提示（「光线有点暗。」）
-- 拍完是**正常出结果**，还是**明确报错**——最怕的是拍完什么反应都没有
-
-### 3.4 基础可用性
-
-- 底部三个 tab 能正常切换；从子页面按返回键能回上一页；根页面再按返回才退出
-- 权限被拒绝后，能不能重新授权 / 跳到系统设置
-
-**发现问题时请尽量记下**：哪一步、屏幕上的原话、手机型号与 Android 版本。
-如果能截图更好。
+**没有任何"已确认的功能性缺陷"**——因为设备端一次都没跑过。
+真机测试后，上面这些可能升级为确切的缺陷。
 
 ---
 
-## 4. 项目结构
+## 6. 下一位 AI 应该从哪里开始
 
-```
-HuKang-DeepSeek/
-  apk/                        交付的 APK（未纳入 git，见第 8 节）
-  src/
-    app/                      Expo Router 路由
-      (tabs)/                 今日 / 库存 / 我的
-      scan/                   扫一扫：index · capture · result · barcode-result
-                              · product-result · nutrition-result
-      product/                商品详情 · 手动创建
-      dev.tsx                 开发者选项（版本号连点 7 次开启）
-    components/               康康吉祥物、五种扫描示意图、商品信息、营养编辑器
-    db/                       SQLite：schema · database · repositories
-    domain/                   纯函数：条码 · 营养 · 保质期 · 日期 · 错误分类 · 表单草稿
-    services/
-      barcode/                查询链编排、候选落库
-      providers/              联网数据源（Open Food Facts / Wikidata，可插拔）
-      network/                HTTP 基础层
-      vision/                 图片质量 · OCR 包装 · 商品身份提取 · 营养解析 · 识别编排 · 联网授权
-      media/                  图片落盘与文件校验
-    theme/                    颜色 · 间距 · 字号
-  modules/
-    hukang-vision/            本地 Kotlin 原生模块（ML Kit 中文 OCR + 图片质量度量）
-  tools/mac-ocr/              开发期验证工具（macOS Vision OCR，不进 App）
-  docs/                       Expo SDK 57 API 核实记录
-  TEST_REPORT.md              测试报告（含 NOT TESTED ON PHYSICAL DEVICE 清单）
-  BUGS.md                     已知问题与限制
-```
+### 第 0 步：先读这几份文档（按顺序）
 
-### 三个核心概念严格分离
+1. `PROJECT_SPEC.md` —— **产品要求是权威来源**，尤其第 6 节「数据规则」是硬性的
+2. `ARCHITECTURE.md` —— 代码在哪、为什么这么写
+3. `DECISIONS.md` —— 20 条关键决策，**避免把刻意设计当成 Bug 改掉**
+4. `BUGS.md` —— 未验证风险与已知限制
+5. `TEST_REPORT.md` —— 什么测过、什么没测过
 
-| 概念 | 表 | 含义 |
-| --- | --- | --- |
-| Product | `products` | 这是什么商品 |
-| InventoryItem | `inventory_items` | 我家里有什么 |
-| NutritionLog | `nutrition_logs` | 我吃了什么 |
-
-`nutrition_logs.nutrition_snapshot` 保存**摄入当时的营养快照**：
-用户以后修改商品营养数据，不会改写已经发生的历史记录。
-
----
-
-## 5. 构建环境（重要：4 个必须知道的坑）
-
-工作区之外的缓存目录被沙箱拒绝写入，且 PATH 上的 `node` 不是标准 Node。
-因此**所有构建命令都必须先 source 环境脚本**：
+### 第 1 步：确认能跑起来
 
 ```bash
-cd /Users/yangbing/Ai/deepseek/软件开发/HuKang-DeepSeek
-source ../.dsh-cache/env.sh
+cd 护康
+npm ci                          # 依据 package-lock.json 安装
+npx tsc --noEmit                # 应零错误
+npm test                        # 应 141 通过 / 2 跳过
 ```
 
-脚本做了 4 件事，每一件都对应一个真实踩过的坑：
-
-| # | 问题 | 处理 |
-| --- | --- | --- |
-| 1 | 沙箱禁止写 `~/.npm` `~/.gradle` `~/.expo` `~/.android` | 全部重定向到工作区 `.dsh-cache/`（含 Expo 官方提供的 `__UNSAFE_EXPO_HOME_DIRECTORY` 开关） |
-| 2 | PATH 上的 `node` 是 DSH 桌面端的 shim，以 `ELECTRON_RUN_AS_NODE=1` 跑 Electron；Electron 版 node 解析 yargs 位置参数与标准 Node 不一致，导致 RN codegen 报 `ENOENT` 构建失败 | 改用系统 `/usr/local/bin/node` |
-| 3 | Kotlin 编译守护进程无法写 `~/Library/Application Support/kotlin/daemon/` | 在 `GRADLE_USER_HOME/gradle.properties` 设 `kotlin.compiler.execution.strategy=in-process` |
-| 4 | 改了 PATH 后旧 Gradle 守护进程仍持旧环境 | 改 PATH 后必须 `./gradlew --stop` 再构建 |
-
-**如果换到一台没有沙箱限制的普通电脑上开发，这些都不需要**，
-直接用默认的 `~/.gradle`、`~/.npm`、系统 node 即可。
-
-### 常用命令
+如果构建 Android：
 
 ```bash
-npx tsc --noEmit                 # 类型检查
-npm test                         # 单元测试（离线，141 通过）
-npm run test:integration         # 集成测试（真实联网，14 通过）
-
-npx expo prebuild --platform android
-cd android && ./gradlew assembleDebug      # 需配合 npx expo start
-cd android && ./gradlew assembleRelease    # 内嵌 bundle，可直接安装
+cd android && ./gradlew assembleRelease
 ```
 
-`android/` 与 `ios/` 是 CNG 生成目录，已加入 `.gitignore`，**不要手工修改**；
-原生行为一律通过 `app.json` 与 config plugin 配置。
-`modules/hukang-vision/` 是手写的原生模块，需要修改时改那里。
+> 本机（yangbing 的 Mac）有沙箱限制，构建前需要 `source ../.dsh-cache/env.sh`。
+> 换到普通电脑上不需要。见 `README.md` 的「环境要求」。
+
+### 第 2 步：等真机反馈，或按下面优先级推进
+
+**如果用户给了真机反馈** → 优先修 `BUGS.md` 里被证实的问题，
+尤其是 HK-001（品牌提取）与 HK-002（营养表行列对齐）。
+
+**如果用户说继续开发** → 按 Phase 顺序推进，下一个是 **Phase 5 配料表**：
+
+1. 在 `src/services/vision/` 新增 `ingredientsParser.ts`（纯函数 + 单测）
+   - 输入 OCR 文本，输出 `rawText` + `items[]` + `addedSugarHints[]`
+   - 切分规则：按「配料」「：」定位，按 `、，,` 切分，去掉括号内的复合配料说明
+   - **添加糖来源只提示，绝不据此计算 `added_sugar_g`**（产品硬性要求）
+2. 新增 `src/app/scan/ingredients-result.tsx`，复用 `scan/nutrition-result.tsx` 的结构
+   （质量检查 → OCR → 解析 → 用户可编辑确认 → 保存）
+3. 采集页已有 `task === 'ingredients_label'` 分支，接上路由即可
+4. 数据库字段 `products.ingredients_raw_text` 与 `ingredients_json` **已经存在**，不需要改表
+
+### 绝对不能做的事
+
+- ❌ 把刻意设计当成 Bug 改掉（先看 `DECISIONS.md`）
+- ❌ 用常识补缺失的营养数据
+- ❌ 用碳水推导添加糖、用总糖顶替添加糖
+- ❌ 把 `null`（未记录）当成 `0`
+- ❌ 把 503 限流当成"商品不存在"
+- ❌ 手改 `android/` 或 `ios/`（改 `app.json` 与 config plugin，然后重新 prebuild）
+- ❌ 凭记忆写 Expo API（先查 `docs/expo-sdk-57-api-reference.md` 或版本化文档）
+- ❌ 把"代码写完"当成"功能完成"
 
 ---
 
-## 6. 数据正确性的硬性约定（改动代码时必须守住）
+## 7. 交付物位置
 
-- `carbohydrate_g`、`total_sugar_g`、`added_sugar_g` 是**三个不同字段**，
-  禁止用碳水推导添加糖；包装未标注时一律存 `NULL`
-- `NULL` = 未记录，与 `0`（含量确实为零）**完全不同**。
-  每日汇总保留 `unknownCount`，有未记录项时合计只是下限
-- 无法可靠换算份量时（基准缺失或单位不匹配），摄入营养整份留空，不猜
-- 包装只写千焦时 `energy_kcal` 保持 `null`，不做单位换算
-- 条形码校验位错误 → 让用户重扫，**不能**报"查不到"
-- 数据源 503 限流 → `unavailable`，**不能**报"商品不存在"
-- 五种扫描任务各有独立错误码与结果页，禁止统一成一句"不认识这款食品"
-- 不做任何"健康评分"，只用具体事实（如"今天钠摄入较高。"）
-
----
-
-## 7. 下一步（Phase 5～8，尚未开始）
-
-| 阶段 | 内容 |
+| 项 | 路径 |
 | --- | --- |
-| Phase 5 | 配料表 OCR + Ingredients Parser（含「可能含添加糖来源」提示，但**不据此算添加糖克数**） |
-| Phase 6 | 日期识别 · 库存 · 临期本地通知 |
-| Phase 7 | NutritionLog · 首页营养可视化 · 历史日期 ·「如果吃下它」 |
-| Phase 8 | 启动页 · 康康 · 视觉统一 |
+| APK | `releases/android/current/HuKang-1.0.0.apk` |
+| 源码 | `src/` |
+| 原生模块 | `modules/hukang-vision/` |
+| Android 工程 | `android/` |
+| 开发期验证工具 | `tools/mac-ocr/` |
+| 已核实的 API 记录 | `docs/expo-sdk-57-api-reference.md` |
 
-本轮按你的要求**已停止开发**，等你真机反馈后再继续。
+APK 的包名 / 版本 / 签名 / SHA-256 见 `FINAL_DELIVERY.md`。
 
 ---
 
-## 8. 关于 apk/ 目录与 git
-
-`apk/HuKang-DeepSeek-Phase4.apk` **已生成在项目根目录的 `apk/` 下，但未纳入 git**。
-
-原因：项目初始约定（§56）明确禁止提交 `*.apk`，而 172MB 的二进制放进 git 也会
-让仓库迅速膨胀。`.gitignore` 里的 `*.apk` 规则会把 `apk/` 下的 APK 忽略掉，
-同目录的 `apk/README.md` 会被正常提交。
-
-**如果你希望把 APK 也纳入版本管理，告诉我，我可以改 `.gitignore`。**
-
-## 9. 版本历史
+## 8. 版本历史
 
 | commit | 阶段 |
 | --- | --- |
@@ -207,3 +207,7 @@ cd android && ./gradlew assembleRelease    # 内嵌 bundle，可直接安装
 | `ac9bfe1` | Phase 2：条形码 / 本地商品库 / 联网 Barcode Lookup |
 | `77a6df8` | Phase 3：拍商品 / 本地 OCR / 图片质量 / 商品身份提取 / 商品搜索 / 候选商品 |
 | `e8a4361` | Phase 4：营养成分表 OCR / Nutrition Parser / 用户确认 |
+| `b16e0f9` | Phase 1～4 交付：可安装 APK + 测试报告 + 交接与问题清单 |
+| （交接版新增） | `chore: prepare HuKang project handoff` |
+
+Tag：`v1.0.0-handoff`

@@ -22,22 +22,32 @@
 
 | 项 | 值 |
 | --- | --- |
-| APK 路径 | `/Users/yangbing/Ai/deepseek/软件开发/HuKang-DeepSeek/apk/HuKang-DeepSeek-Phase4.apk` |
+| APK 相对路径 | `releases/android/current/HuKang-1.0.0.apk` |
+| APK 绝对路径 | `/Users/yangbing/Ai/deepseek/软件开发/护康/releases/android/current/HuKang-1.0.0.apk` |
 | 包名 | `com.hukang.deepseek` |
 | versionName | `1.0.0` |
 | versionCode | `1` |
 | 文件大小 | 180,786,227 字节（约 172 MB） |
-| SHA-256 | `9d14a72dde06f078dad48d6971afeb60c0e2c353c48d16b74007bd2da714e4a5` |
+| SHA-256 | `ad5027859e71b2fda13a1cb27eacb5610fef29169340faef39a1d17c7e61082d` |
 | minSdkVersion | 24（Android 7.0） |
 | targetSdkVersion | 36 |
+| compileSdkVersion | 36 |
+| 应用名 | 护康 |
 | 签名 | APK Signature Scheme **v2 有效**，证书 `CN=Android Debug` |
 | 可点装 | 是（清单中**无** `testOnly`、**无** `debuggable`） |
 | 内嵌 JS bundle | 是（`assets/index.android.bundle`，2,536,548 字节） |
 | 原生架构 | `arm64-v8a` / `armeabi-v7a` / `x86` / `x86_64` |
+| 权限 | `CAMERA` · `INTERNET` · `ACCESS_NETWORK_STATE` · `READ/WRITE_EXTERNAL_STORAGE`(maxSdk 32) · `VIBRATE`（**无 `RECORD_AUDIO`**） |
 
 > 签名用的是 React Native 模板自带的 debug keystore。它**能正常安装**，
 > 但只适合内部测试；正式发布必须换成自己的 keystore。
 > 包名一致的情况下，后续换签名需要先卸载再装。
+
+> **本 APK 是在交接版 `护康/` 目录内、从零独立构建出来的**
+> （`npm ci` 全新安装 497 个包 → `./gradlew assembleRelease`，
+> 612 个任务全部从头执行）。这同时验证了交接版是一个可独立构建的完整项目。
+> 因此它的 SHA-256 与开发目录 `HuKang-DeepSeek/` 里那份 APK 不同——
+> 两者内容等价，只是构建路径与时间戳不同。
 
 ---
 
