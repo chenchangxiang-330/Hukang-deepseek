@@ -43,11 +43,9 @@
 > 但只适合内部测试；正式发布必须换成自己的 keystore。
 > 包名一致的情况下，后续换签名需要先卸载再装。
 
-> **本 APK 是在交接版 `护康/` 目录内、从零独立构建出来的**
+> **本 APK 是在交付目录 `护康/` 内、从零独立构建出来的**
 > （`npm ci` 全新安装 497 个包 → `./gradlew assembleRelease`，
-> 612 个任务全部从头执行）。这同时验证了交接版是一个可独立构建的完整项目。
-> 因此它的 SHA-256 与开发目录 `HuKang-DeepSeek/` 里那份 APK 不同——
-> 两者内容等价，只是构建路径与时间戳不同。
+> 612 个任务全部从头执行）。这同时验证了交付版是一个可独立构建的完整项目。
 
 ---
 
@@ -211,8 +209,8 @@ GitHub 上也没有找到中文营养标签的公开图片集。
 ## 7. 复现命令
 
 ```bash
-cd /Users/yangbing/Ai/deepseek/软件开发/HuKang-DeepSeek
-source ../.dsh-cache/env.sh          # 缓存重定向 + 使用系统 Node（见 HANDOFF.md）
+cd /Users/yangbing/Ai/deepseek/软件开发/护康
+source ../.dsh-cache/env.sh          # 仅本机需要：缓存重定向 + 使用系统 Node（见 README「环境要求」）
 
 npx tsc --noEmit                     # 类型检查
 npm test                             # 单元测试（离线）
@@ -222,11 +220,16 @@ npx expo prebuild --platform android
 cd android && ./gradlew assembleDebug assembleRelease
 ```
 
+> `android/` 源码已在交付版中保留，所以 `expo prebuild` 不是必需的；
+> 只有改过 `app.json` 或 config plugin 时才需要重跑它。
+
 APK 校验：
 
 ```bash
 BT=/Users/yangbing/Library/Android/sdk/build-tools/36.0.0
-$BT/aapt2 dump badging apk/HuKang-DeepSeek-Phase4.apk | head -5
-$BT/apksigner verify --print-certs apk/HuKang-DeepSeek-Phase4.apk
-shasum -a 256 apk/HuKang-DeepSeek-Phase4.apk
+APK=/Users/yangbing/Ai/deepseek/软件开发/护康/releases/android/current/HuKang-1.0.0.apk
+
+$BT/aapt2 dump badging "$APK" | head -5
+$BT/apksigner verify --print-certs "$APK"
+shasum -a 256 "$APK"
 ```
