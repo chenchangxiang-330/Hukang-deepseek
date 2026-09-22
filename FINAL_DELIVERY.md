@@ -62,15 +62,21 @@
 
 | 项 | 值 |
 | --- | --- |
-| **Git commit** | `674c38559a32882db674814d2a3e585123241c9a`（短哈希 `674c385`） |
+| **Git commit（交接提交）** | `674c38559a32882db674814d2a3e585123241c9a`（短哈希 `674c385`） |
 | **Git commit 标题** | `chore: prepare HuKang project handoff` |
 | **Git Tag** | `v1.0.0-handoff` |
 | 分支 | `master` |
-| 历史保留 | ✅ 保留全部 6 个提交，未做任何重写 |
+| 历史保留 | ✅ 保留全部开发期提交，未做任何重写、未删除历史 |
+| 已跟踪文件 | 154 个 |
 | APK 是否入库 | ❌ 未入库（`.gitignore` 的 `*.apk` 规则忽略，符合项目约定） |
 
-> Tag 指向交接提交之后的文档补全提交（内容与交接提交一致，仅补充了本页的哈希），
-> 用 `git rev-parse v1.0.0-handoff` 可查看确切指向。
+> 交接提交之后还有 2 个收尾提交（补充本页哈希、把 `android/` 纳入版本管理），
+> Tag 指向交接完成后的最终状态。查看确切指向：
+>
+> ```bash
+> git rev-parse 'v1.0.0-handoff^{commit}'
+> git log --oneline v1.0.0-handoff
+> ```
 
 ### 查询方式
 
@@ -85,6 +91,8 @@ git status                   # 应显示干净
 ### 提交历史
 
 ```
+bf2e6f8  chore: 把 android/ 源码纳入版本管理，确保 git clone 后可直接构建
+56e3ab9  docs: 在 FINAL_DELIVERY 中记录交接提交哈希
 674c385  chore: prepare HuKang project handoff        ← 交接提交
 b16e0f9  Phase 1～4 交付：可安装 APK + 测试报告 + 交接与问题清单
 e8a4361  Phase 4: 营养成分表 OCR / Nutrition Parser / 用户确认
