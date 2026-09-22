@@ -62,10 +62,15 @@
 
 | 项 | 值 |
 | --- | --- |
+| **Git commit** | `674c38559a32882db674814d2a3e585123241c9a`（短哈希 `674c385`） |
+| **Git commit 标题** | `chore: prepare HuKang project handoff` |
 | **Git Tag** | `v1.0.0-handoff` |
-| **Git commit** | 见下方「查询方式」（交接提交为 `chore: prepare HuKang project handoff`） |
 | 分支 | `master` |
-| 历史保留 | ✅ 保留全部 5 个开发期提交，未做任何重写 |
+| 历史保留 | ✅ 保留全部 6 个提交，未做任何重写 |
+| APK 是否入库 | ❌ 未入库（`.gitignore` 的 `*.apk` 规则忽略，符合项目约定） |
+
+> Tag 指向交接提交之后的文档补全提交（内容与交接提交一致，仅补充了本页的哈希），
+> 用 `git rev-parse v1.0.0-handoff` 可查看确切指向。
 
 ### 查询方式
 
@@ -80,6 +85,7 @@ git status                   # 应显示干净
 ### 提交历史
 
 ```
+674c385  chore: prepare HuKang project handoff        ← 交接提交
 b16e0f9  Phase 1～4 交付：可安装 APK + 测试报告 + 交接与问题清单
 e8a4361  Phase 4: 营养成分表 OCR / Nutrition Parser / 用户确认
 77a6df8  Phase 3: 拍商品 / 本地 OCR / 图片质量 / 商品身份提取 / 商品搜索 / 候选商品
