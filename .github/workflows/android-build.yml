@@ -55,6 +55,19 @@ jobs:
       - name: 准备 Android SDK
         uses: android-actions/setup-android@v3
 
+      # GitHub 的 runner 只带最基础的 SDK，默认没有 android-36 与 build-tools 36.0.0。
+      # 不显式装这两样，Gradle 会报「failed to find target with hash string android-36」。
+      # 注意顺序：先接受许可，再安装，否则安装过程会卡在交互式确认上。
+      - name: 安装 Android SDK 组件
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager --install \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "platform-tools"
+          echo "===== 已安装的组件 ====="
+          sdkmanager --list_installed 2>/dev/null | head -20 || true
+
       - name: 安装依赖
         run: npm ci
 
@@ -76,10 +89,12 @@ jobs:
 
       - name: 校验 APK
         run: |
+          set -e
           APK=android/app/build/outputs/apk/release/app-release.apk
           ls -lh "$APK"
-          BT=$(ls -d $ANDROID_HOME/build-tools/* | tail -1)
-          "$BT/aapt2" dump badging "$APK" | head -5
+          echo "SHA-256: $(sha256sum "$APK" | cut -d' ' -f1)"
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | tail -1)
+          "$BT/aapt2" dump badging "$APK" | grep -E '^package:|^application-label:|^native-code'
           "$BT/apksigner" verify --print-certs "$APK"
 
       - name: 上传 APK
