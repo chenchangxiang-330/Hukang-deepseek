@@ -111,14 +111,14 @@ EAS 在云端容器里自带 JDK、Android SDK、NDK。
 ```bash
 cd 护康
 git remote add origin git@github.com:<你的用户名>/<仓库名>.git
-git push -u origin master
+git push -u origin main
 git push origin v1.0.0-handoff
 ```
 
 推送后：
 1. 打开仓库的 **Actions** 页面
 2. 选择 **Build Android APK** 工作流
-3. 点 **Run workflow**（或直接向 `master` 推送代码即自动触发）
+3. 点 **Run workflow**（或直接向 `main` 推送代码即自动触发）
 4. 等约 10 分钟，在运行详情页底部下载 **Artifacts → HuKang-APK-<commit>**
 
 工作流会依次执行：检出代码 → 装 Node 24 → 装 JDK 17 → 准备 Android SDK

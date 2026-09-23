@@ -65,7 +65,7 @@
 | **Git commit（交接提交）** | `674c38559a32882db674814d2a3e585123241c9a`（短哈希 `674c385`） |
 | **Git commit 标题** | `chore: prepare HuKang project handoff` |
 | **Git Tag** | `v1.0.0-handoff` |
-| 分支 | `master` |
+| 分支 | `main` |
 | 历史保留 | ✅ 保留全部开发期提交，未做任何重写、未删除历史 |
 | 已跟踪文件 | 154 个 |
 | APK 是否入库 | ❌ 未入库（`.gitignore` 的 `*.apk` 规则忽略，符合项目约定） |
