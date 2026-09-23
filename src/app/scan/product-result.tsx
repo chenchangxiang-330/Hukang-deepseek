@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { KangKang } from '@/components/KangKang';
 import { NutritionFactsList, ProductIdentity as ProductIdentityView, SourceNotice } from '@/components/ProductFacts';
+import type { QualityVerdict } from '@/services/vision/imageQuality';
 import { saveCandidateAsProduct } from '@/services/barcode/saveProduct';
 import type { ProductCandidate } from '@/services/providers/types';
 import {
@@ -44,6 +45,12 @@ export default function ProductResultScreen() {
   const insets = useSafeAreaInsets();
 
   const [result, setResult] = useState<ProductRecognitionResult | null>(null);
+  /**
+   * 质量结果单独存一份，**一算出来就渲染**。
+   * 不能等 result（整条流程跑完才赋值），否则"照片有点糊"这类提示
+   * 要等联网搜索转完才出现，早就错过重拍时机了。
+   */
+  const [earlyQuality, setEarlyQuality] = useState<QualityVerdict | null>(null);
   const [steps, setSteps] = useState<RecognitionStep[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -52,8 +59,13 @@ export default function ProductResultScreen() {
     if (!uri) return;
     let cancelled = false;
     void (async () => {
-      const outcome = await recognizeProductPhoto(uri, (next) => {
-        if (!cancelled) setSteps(next);
+      const outcome = await recognizeProductPhoto(uri, {
+        onStep: (next) => {
+          if (!cancelled) setSteps(next);
+        },
+        onQuality: (quality) => {
+          if (!cancelled) setEarlyQuality(quality.verdict);
+        },
       });
       if (!cancelled) setResult(outcome);
     })();
@@ -80,7 +92,7 @@ export default function ProductResultScreen() {
 
   const identity = result?.identity ?? null;
   const candidates = result?.candidates ?? null;
-  const qualityIssues = result?.quality?.verdict.issues ?? [];
+  const qualityIssues = (earlyQuality ?? result?.quality?.verdict)?.issues ?? [];
   const running = result === null;
 
   return (
@@ -178,6 +190,12 @@ export default function ProductResultScreen() {
           {identity && (identity.brand || identity.productName || identity.quantity) ? (
             <View style={styles.identityCard}>
               <Text style={styles.identityTitle}>已经认出来的信息</Text>
+              {/* 这些字段是猜出来的，不保证对——必须明确告诉用户 */}
+              {identity.uncertainFields.length > 0 ? (
+                <Text style={styles.uncertainHint}>
+                  下面这些是认出来的，不一定准，请对着包装核对一下。
+                </Text>
+              ) : null}
               {identity.brand ? <IdentityRow label="品牌" value={identity.brand} /> : null}
               {identity.productName ? <IdentityRow label="商品" value={identity.productName} /> : null}
               {identity.flavor ? <IdentityRow label="口味" value={identity.flavor} /> : null}
@@ -313,6 +331,12 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   identityTitle: { ...typography.section, color: colors.text, marginBottom: spacing.xs },
+  uncertainHint: {
+    ...typography.caption,
+    color: colors.warn,
+    lineHeight: 18,
+    marginBottom: spacing.xs,
+  },
   identityRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md },
   identityLabel: { ...typography.body, color: colors.textSecondary },
   identityValue: { ...typography.body, color: colors.text, flexShrink: 1 },

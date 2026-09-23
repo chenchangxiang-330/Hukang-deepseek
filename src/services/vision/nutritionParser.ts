@@ -37,6 +37,14 @@ export interface ParsedNutrition {
   uncertainFieldKeys: NutritionField[];
   /** 包装上没有 / 没读出来的项，UI 应提示可手动补 */
   missingFields: NutritionField[];
+  /**
+   * 这段文字看起来是不是**真的营养成分表**。
+   *
+   * 真机实测教训：用户拍的是瓶子正面（没有营养表），却因为背面漏进来一行
+   * 「蛋白质」就解析出了数值，界面还当成正常数据显示。
+   * 光看"解析到了几项"不够，必须先判断"这是不是一张营养表"。
+   */
+  looksLikeTable: boolean;
   rawText: string;
 }
 
@@ -157,6 +165,21 @@ function unitMatchesField(field: NutritionField, unit: 'kj' | 'kcal' | 'g' | 'mg
 }
 
 /**
+ * 判断捕获到的数字串是不是 OCR 误读。
+ *
+ * 真实营养标签不会写成 "045g" 这种形式：要么是 "45g"，要么是 "0.45g"。
+ * **前导零后面还跟着数字、又没有小数点**，基本可以断定是 OCR 把小数点弄丢了
+ * （真机实测确实出现过把 "0.45g" 读成 "045G" 的情况）。
+ *
+ * 这种情况下绝不能用 "45" 顶上去——那会变成一个看起来正常、实际完全错误
+ * 的数据，用户很难发现。
+ */
+export function isMisreadNumber(digits: string): boolean {
+  if (digits.includes('.')) return false;
+  return digits.length > 1 && digits.startsWith('0');
+}
+
+/**
  * 解析一行文本里的某个营养项。
  * 返回 null 表示这行没有可用的该项数据。
  */
@@ -187,6 +210,11 @@ function parseFieldFromLine(
   const unit = normalizeUnit(match[3]);
 
   if (!Number.isFinite(value)) return null;
+
+  // OCR 把小数点弄丢的情况（"0.45g" → "045G"）：数值不可信，不赋值
+  if (isMisreadNumber(match[2])) {
+    return { uncertain: `${line.trim()}（数字像是读错了，请手工填写）`, field };
+  }
 
   // “＜0.1g” 这类写法只给出了上限，真实值未知 —— 不能当 0.1 存
   if (boundPrefix) {
@@ -330,6 +358,7 @@ export function parseNutritionLabel(rawText: string, lines?: string[]): ParsedNu
     uncertainFields,
     uncertainFieldKeys,
     missingFields,
+    looksLikeTable: detectNutritionTable(text),
     rawText: text,
   };
 }
@@ -337,4 +366,37 @@ export function parseNutritionLabel(rawText: string, lines?: string[]): ParsedNu
 /** 是否解析出了任何一项 —— 一项都没有才算解析失败（§42 NUTRITION_PARSE_FAILED） */
 export function hasAnyNutritionValue(parsed: ParsedNutrition): boolean {
   return parsed.evidence.length > 0;
+}
+
+/** 营养表几乎一定会出现的表头字样 */
+const TABLE_HEADER_KEYWORDS = ['营养成分表', '营养成分', '营养素参考值', 'nrv'];
+
+/**
+ * 判断这段 OCR 文字是不是营养成分表。
+ *
+ * 判定标准（满足其一）：
+ *   1. 出现明确的表头字样（营养成分表 / NRV / 营养素参考值）
+ *   2. 出现 **3 个以上**不同的营养项目名（能量、蛋白质、脂肪、碳水化合物、钠……）
+ *
+ * 为什么要求 3 个：只出现 1 个（例如包装正面背面漏进来一个「蛋白质」）
+ * 完全不足以证明这是营养表，而误判的代价是给用户一个看似正常的错数字。
+ */
+export function detectNutritionTable(text: string): boolean {
+  const normalized = normalizeLabelText(text ?? '').toLowerCase();
+
+  if (TABLE_HEADER_KEYWORDS.some((k) => normalized.includes(k.toLowerCase()))) {
+    return true;
+  }
+
+  const distinctNutrients = new Set<string>();
+  for (const { aliases } of FIELD_ALIASES) {
+    for (const alias of aliases) {
+      if (normalized.includes(alias)) {
+        distinctNutrients.add(alias);
+        break;
+      }
+    }
+  }
+
+  return distinctNutrients.size >= 3;
 }

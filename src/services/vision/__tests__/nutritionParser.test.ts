@@ -7,6 +7,7 @@
  */
 
 import {
+  detectNutritionTable,
   hasAnyNutritionValue,
   normalizeLabelText,
   parseNutritionBasis,
@@ -239,5 +240,69 @@ describe('hasAnyNutritionValue —— 一项都没解析出来才算失败', () 
     const parsed = parseNutritionLabel('');
     expect(hasAnyNutritionValue(parsed)).toBe(false);
     expect(parsed.basis).toEqual({ amount: null, unit: null });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// 以下用例来自真机实测暴露的真实事故
+// ─────────────────────────────────────────────────────────────
+
+describe('OCR 丢小数点的防护（真机事故）', () => {
+  it('把 "0.45g" 读成 "045G" 时，绝不能当成 45 或 43', () => {
+    const parsed = parseNutritionLabel(['每100毫升', '蛋白质 045G'].join('\n'));
+    // 关键：不赋任何值
+    expect(parsed.facts.protein_g).toBeNull();
+    expect(parsed.uncertainFields.length).toBeGreaterThan(0);
+  });
+
+  it('正常的 0.45g 照常解析', () => {
+    const parsed = parseNutritionLabel(['每100毫升', '蛋白质 0.45g'].join('\n'));
+    expect(parsed.facts.protein_g).toBe(0.45);
+  });
+
+  it('正常的 45g 照常解析（不能被误伤）', () => {
+    const parsed = parseNutritionLabel(['每100克', '蛋白质 45g'].join('\n'));
+    expect(parsed.facts.protein_g).toBe(45);
+  });
+});
+
+describe('detectNutritionTable —— 这到底是不是营养成分表', () => {
+  it('有「营养成分表」表头 → 是', () => {
+    expect(detectNutritionTable('营养成分表 能量 180kJ')).toBe(true);
+  });
+
+  it('有 NRV 表头 → 是', () => {
+    expect(detectNutritionTable('项目 每100克 NRV% 能量 180kJ')).toBe(true);
+  });
+
+  it('出现 3 个以上营养项目 → 是', () => {
+    expect(detectNutritionTable('能量 180kJ 蛋白质 3.2g 脂肪 3.6g')).toBe(true);
+  });
+
+  it('真机事故：瓶子正面只有零散几个字，不算营养表', () => {
+    // 用户拍的是正面，即使背面漏进来一行「蛋白质」也不能当营养表
+    expect(detectNutritionTable('东鹏饮料 焙好茶 茉莉乌龙 无糖 蛋白质')).toBe(false);
+  });
+
+  it('完全无关的文字 → 不是', () => {
+    expect(detectNutritionTable('净含量500ml 原味茶饮料')).toBe(false);
+  });
+
+  it('空输入 → 不是', () => {
+    expect(detectNutritionTable('')).toBe(false);
+  });
+});
+
+describe('parseNutritionLabel 会带上 looksLikeTable 标记', () => {
+  it('正常营养表标记为 true', () => {
+    const parsed = parseNutritionLabel(
+      ['营养成分表', '每100毫升', '能量 180kJ', '蛋白质 3.2g'].join('\n'),
+    );
+    expect(parsed.looksLikeTable).toBe(true);
+  });
+
+  it('瓶子正面标记为 false（哪怕解析出了零星数值）', () => {
+    const parsed = parseNutritionLabel('东鹏饮料 焙好茶 茉莉乌龙 无糖 蛋白质 045G');
+    expect(parsed.looksLikeTable).toBe(false);
   });
 });

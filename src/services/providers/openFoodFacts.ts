@@ -161,9 +161,13 @@ interface OffSearchResponse {
   products?: OffProduct[];
 }
 
-async function queryByBarcode(barcode: string, apiVersion: 'v2' | 'v3'): Promise<LookupOutcome> {
+async function queryByBarcode(
+  barcode: string,
+  apiVersion: 'v2' | 'v3',
+  timeoutMs?: number,
+): Promise<LookupOutcome> {
   const url = `${BASE}/api/${apiVersion}/product/${encodeURIComponent(barcode)}.json?fields=${FIELDS}`;
-  const result = await fetchJson<OffProductResponse>(url);
+  const result = await fetchJson<OffProductResponse>(url, { timeoutMs });
 
   if (result.status === 404) {
     return { kind: 'no_match', source: `openfoodfacts_${apiVersion}` };
@@ -200,7 +204,8 @@ export const openFoodFactsV2: BarcodeProvider = {
   id: 'openfoodfacts_v2',
   label: 'Open Food Facts (v2)',
   requiresKey: false,
-  lookupByBarcode: (barcode) => guardLookup('openfoodfacts_v2', () => queryByBarcode(barcode, 'v2')),
+  lookupByBarcode: (barcode, options) =>
+    guardLookup('openfoodfacts_v2', () => queryByBarcode(barcode, 'v2', options?.timeoutMs)),
 };
 
 /** 备用：v3 接口，语义与 v2 略有差异，v2 无结果时再试一次 */
@@ -208,14 +213,15 @@ export const openFoodFactsV3: BarcodeProvider = {
   id: 'openfoodfacts_v3',
   label: 'Open Food Facts (v3)',
   requiresKey: false,
-  lookupByBarcode: (barcode) => guardLookup('openfoodfacts_v3', () => queryByBarcode(barcode, 'v3')),
+  lookupByBarcode: (barcode, options) =>
+    guardLookup('openfoodfacts_v3', () => queryByBarcode(barcode, 'v3', options?.timeoutMs)),
 };
 
 /** 关键词搜索：用于“拍商品”流程，以及条码未被收录时的兜底（§21 / §24） */
 export const openFoodFactsSearch: KeywordSearchProvider = {
   id: 'openfoodfacts_search',
   label: 'Open Food Facts 关键词搜索',
-  searchByKeyword(keyword: string, limit = 8): Promise<LookupOutcome> {
+  searchByKeyword(keyword: string, limit = 8, options?): Promise<LookupOutcome> {
     return guardLookup('openfoodfacts_search', async () => {
       const trimmed = keyword.trim();
       if (!trimmed) return { kind: 'no_match', source: 'openfoodfacts_search' };
@@ -224,7 +230,7 @@ export const openFoodFactsSearch: KeywordSearchProvider = {
         `${BASE}/cgi/search.pl?search_terms=${encodeURIComponent(trimmed)}` +
         `&search_simple=1&action=process&json=1&page_size=${limit}&fields=${FIELDS}`;
 
-      const result = await fetchJson<OffSearchResponse>(url);
+      const result = await fetchJson<OffSearchResponse>(url, { timeoutMs: options?.timeoutMs });
       if (!result.ok || !result.data) {
         return {
           kind: 'unavailable',

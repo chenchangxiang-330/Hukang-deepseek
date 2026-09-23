@@ -58,11 +58,26 @@ export interface BarcodeProvider {
   /** 是否需要 API Key */
   readonly requiresKey: boolean;
   /** 当前是否可用（例如商业库没配 Key 就不可用） */
-  lookupByBarcode(barcode: string): Promise<LookupOutcome>;
+  lookupByBarcode(barcode: string, options?: ProviderCallOptions): Promise<LookupOutcome>;
+}
+
+/**
+ * 单次数据源调用的控制参数。
+ *
+ * 为什么要由调用方传超时进来：真机实测时用户扫一个条码等了 12 秒还没结果。
+ * 原因是三个数据源各自有 12 秒超时，串起来最坏要等 30 秒。
+ * 超时必须由**编排层统一控制**，才能保证用户最多等多久。
+ */
+export interface ProviderCallOptions {
+  timeoutMs?: number;
 }
 
 export interface KeywordSearchProvider {
   readonly id: string;
   readonly label: string;
-  searchByKeyword(keyword: string, limit?: number): Promise<LookupOutcome>;
+  searchByKeyword(
+    keyword: string,
+    limit?: number,
+    options?: ProviderCallOptions,
+  ): Promise<LookupOutcome>;
 }

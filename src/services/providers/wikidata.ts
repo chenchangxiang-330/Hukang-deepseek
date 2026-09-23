@@ -57,7 +57,8 @@ export const wikidataProvider: BarcodeProvider = {
   id: 'wikidata',
   label: 'Wikidata (GTIN P3962)',
   requiresKey: false,
-  lookupByBarcode: (barcode) => guardLookup('wikidata', () => queryWikidata(barcode)),
+  lookupByBarcode: (barcode, options) =>
+    guardLookup('wikidata', () => queryWikidata(barcode, options?.timeoutMs)),
 };
 
 /**
@@ -66,12 +67,14 @@ export const wikidataProvider: BarcodeProvider = {
  */
 const WIKIDATA_TIMEOUT_MS = 6000;
 
-async function queryWikidata(barcode: string): Promise<LookupOutcome> {
+async function queryWikidata(barcode: string, timeoutOverrideMs?: number): Promise<LookupOutcome> {
+  // 编排层给的超时优先，否则用本数据源的默认值
+  const timeout = timeoutOverrideMs ?? WIKIDATA_TIMEOUT_MS;
   const searchUrl =
     `${API}?action=query&list=search&format=json&srlimit=3` +
     `&srsearch=${encodeURIComponent(`haswbstatement:${GTIN_PROPERTY}=${barcode}`)}`;
 
-  const search = await fetchJson<WdSearchResponse>(searchUrl, { timeoutMs: WIKIDATA_TIMEOUT_MS });
+  const search = await fetchJson<WdSearchResponse>(searchUrl, { timeoutMs: timeout });
   if (!search.ok || !search.data) {
     return { kind: 'unavailable', source: 'wikidata', reason: `HTTP ${search.status}` };
   }
@@ -86,7 +89,7 @@ async function queryWikidata(barcode: string): Promise<LookupOutcome> {
     `&languages=zh|zh-cn|en&ids=${hit.title}`;
 
   const entityResult = await fetchJson<WdEntityResponse>(entityUrl, {
-    timeoutMs: WIKIDATA_TIMEOUT_MS,
+    timeoutMs: timeout,
   });
   const entity = entityResult.data?.entities?.[hit.title];
   if (!entity) {
@@ -103,7 +106,7 @@ async function queryWikidata(barcode: string): Promise<LookupOutcome> {
   if (brandId) {
     const brandResult = await fetchJson<WdEntityResponse>(
       `${API}?action=wbgetentities&format=json&props=labels&languages=zh|zh-cn|en&ids=${brandId}`,
-      { timeoutMs: WIKIDATA_TIMEOUT_MS },
+      { timeoutMs: timeout },
     );
     brand = pickLabel(brandResult.data?.entities?.[brandId]?.labels, ['zh', 'zh-cn', 'en']);
   }

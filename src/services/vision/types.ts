@@ -21,6 +21,14 @@ export interface ProductIdentityExtraction {
   visibleText: string;
   /** 照片里如果同时出现条形码，一并利用 */
   barcode: string | null;
+  /**
+   * 属于"猜出来的、不保证对"的字段名。
+   *
+   * 真机实测教训：品牌名被认成"東鵬吹将"（实际是"东鹏饮料"），
+   * 界面照常显示、用户照常信。凡是靠启发式猜出来的字段，
+   * 都应该让界面提醒一句"请核对"，而不是装作确定。
+   */
+  uncertainFields: string[];
 }
 
 /** 营养成分表的结构化结果（Phase 4 使用） */

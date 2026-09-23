@@ -142,12 +142,51 @@ export function findBarcodeInText(text: string): string | null {
   return null;
 }
 
-/** 像是品牌名：短、无数字、无标点、通常带“牌”或在最上方 */
+/**
+ * 包装上常见、但**绝不是品牌名**的字样。
+ *
+ * 真机实测时，用户拍的瓶子顶部有「净含量500ml」这类说明文字，
+ * 启发式规则很容易把它当成品牌名。把已知的非品牌词直接排除掉，
+ * 比事后让用户改要可靠得多。
+ */
+const NON_BRAND_KEYWORDS = [
+  '净含量', '含量', '规格', '营养成分', '营养', '配料', '成分',
+  '生产日期', '保质期', '保存', '贮存', '储藏', '开封', '食用',
+  '产品标准', '执行标准', '标准号', '委托', '受托', '地址', '电话',
+  '热线', '服务', '网址', '提示', '注意', '警告', '温馨提示',
+  '品名', '类型', '类别', '饮用', '开启', '说明', '图案', '仅供参考',
+  '无糖', '低糖', '原味', '茶饮料', '饮料', '食品', '有限', '公司',
+];
+
+/**
+ * 明显的 OCR 噪声：竖线、下划线、纯符号等。
+ *
+ * ⚠️ 注意：JS 正则里中文属于 `\W`（非单词字符），
+ * 所以**不能**用 `^[\W_]+$` 判断"是不是纯符号"——那会把所有中文都判成噪声。
+ * 真机事故排查时踩过这个坑：加上那条规则后，「农夫山泉」「伊利」全被过滤掉了。
+ * 正确做法是反过来：必须至少含一个汉字或字母数字，否则才算噪声。
+ */
+function looksLikeNoise(text: string): boolean {
+  if (/[|｜_\\/]/.test(text)) return true;
+  if (!/[\u4e00-\u9fffA-Za-z0-9]/.test(text)) return true;
+  // 同一个字符重复 3 次以上，基本是识别噪声
+  if (/(.)\1{2,}/.test(text)) return true;
+  return false;
+}
+
+/**
+ * 像是品牌名：短、无数字、无标点、且不是包装上的说明性文字。
+ *
+ * ⚠️ 这是**启发式规则，不保证正确**。真机实测把「东鹏饮料」认成了
+ * 「東鵬吹将」。所以凡是靠它得出的品牌名，都要在界面上标注"请核对"。
+ */
 function looksLikeBrand(text: string): boolean {
   const trimmed = text.trim();
   if (trimmed.length < 2 || trimmed.length > 8) return false;
   if (/\d/.test(trimmed)) return false;
   if (/[，。、：:；;！!？?（）()【】\[\]]/.test(trimmed)) return false;
+  if (looksLikeNoise(trimmed)) return false;
+  if (NON_BRAND_KEYWORDS.some((k) => trimmed.includes(k))) return false;
   return true;
 }
 
@@ -188,6 +227,13 @@ export function extractProductIdentity(
   const finalName =
     productName && quantityLine && productName === quantityLine.text.trim() ? null : productName;
 
+  // 哪些字段是"猜出来的"——界面要据此提醒用户核对
+  const uncertainFields: string[] = [];
+  if (brand) uncertainFields.push('brand');
+  if (finalName) uncertainFields.push('productName');
+  if (flavor) uncertainFields.push('flavor');
+  if (category) uncertainFields.push('category');
+
   return {
     brand,
     productName: finalName,
@@ -197,6 +243,7 @@ export function extractProductIdentity(
     category,
     visibleText: rawText,
     barcode,
+    uncertainFields,
   };
 }
 

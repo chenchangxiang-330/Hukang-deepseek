@@ -33,6 +33,7 @@ import {
   draftToNutrition,
   type NutritionDraft,
 } from '@/domain/nutritionDraft';
+import { dedupeFieldNames, validateNutrition } from '@/domain/nutritionValidation';
 import { EMPTY_NUTRITION_FACTS } from '@/domain/types';
 import { measureImageQuality, runOcr } from '@/services/vision/ocr';
 import { evaluateImageQuality, type QualityVerdict } from '@/services/vision/imageQuality';
@@ -139,9 +140,22 @@ export default function NutritionResultScreen() {
       const result = parseNutritionLabel(rawText, lines);
       if (cancelled) return;
 
+      // 3a) 先判断"这到底是不是一张营养成分表"。
+      //     真机实测教训：用户拍的是瓶子正面（压根没有营养表），
+      //     却因为背面漏进来一行「蛋白质」就解析出了数值，界面当成正常数据显示。
+      //     宁可让用户重拍，也不能给出一个看起来正常的错数字。
+      if (!result.looksLikeTable) {
+        update('parse', 'failed', '这张照片里没有营养成分表');
+        setFatal(
+          '这张照片里没有找到营养成分表。请把包装翻过来，对着印着「营养成分表」的那一块拍。',
+        );
+        setRunning(false);
+        return;
+      }
+
       if (!hasAnyNutritionValue(result)) {
         update('parse', 'failed', '没有识别出任何营养项目');
-        setFatal('这张照片里没有读出营养项目，可能是拍到了别的内容。');
+        setFatal('营养表读到了，但一项数值都没认出来。靠近一点、正对着再拍一次。');
         setRunning(false);
         return;
       }
@@ -166,10 +180,37 @@ export default function NutritionResultScreen() {
     return map;
   }, [parsed]);
 
+  /**
+   * 保存前的合理性校验。
+   *
+   * 真机实测教训：一瓶无糖茶被识别出「蛋白质 43g/100g」，
+   * 界面毫无反应，用户点保存就存进去了。
+   * 物理上不可能的值必须拦下来（reject），偏高的值提示核对（warn）。
+   */
+  const validationIssues = useMemo(() => {
+    const { facts, basisAmount, basisUnit } = draftToNutrition(draft);
+    return validateNutrition({ facts, basis: { amount: basisAmount, unit: basisUnit } });
+  }, [draft]);
+
+  const blockingIssues = useMemo(
+    () => validationIssues.filter((i) => i.severity === 'reject'),
+    [validationIssues],
+  );
+  const warningIssues = useMemo(
+    () => validationIssues.filter((i) => i.severity === 'warn'),
+    [validationIssues],
+  );
+
   const handleSave = useCallback(async () => {
     const trimmedName = name.trim();
     if (!trimmedName) {
       setSaveError('请填写商品名称。');
+      return;
+    }
+
+    // 有物理上不可能的值时不许保存 —— 宁可让用户多改一次
+    if (blockingIssues.length > 0) {
+      setSaveError(blockingIssues[0].message);
       return;
     }
 
@@ -207,7 +248,7 @@ export default function NutritionResultScreen() {
     } finally {
       setSaving(false);
     }
-  }, [brand, draft, name, params.barcode, params.productId, router]);
+  }, [blockingIssues, brand, draft, name, params.barcode, params.productId, router]);
 
   return (
     <KeyboardAvoidingView
@@ -303,9 +344,7 @@ export default function NutritionResultScreen() {
             {parsed.missingFields.length > 0 ? (
               <Text style={styles.missingHint}>
                 包装上没有标注（已记为未记录）：
-                {parsed.missingFields
-                  .map((f) => FIELD_SHORT[f] ?? f)
-                  .join('、')}
+                {dedupeFieldNames(parsed.missingFields).join('、')}
               </Text>
             ) : null}
 
@@ -326,11 +365,31 @@ export default function NutritionResultScreen() {
               evidenceByField={evidenceByField}
             />
 
+            {/* 数值合理性：不可能的值必须拦下，偏高的提示核对 */}
+            {blockingIssues.length > 0 ? (
+              <View style={styles.blockingCard}>
+                {blockingIssues.map((issue, index) => (
+                  <Text key={`${issue.field}-${index}`} style={styles.blockingText}>
+                    {issue.message}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+            {blockingIssues.length === 0 && warningIssues.length > 0 ? (
+              <View style={styles.warningCard}>
+                {warningIssues.map((issue, index) => (
+                  <Text key={`${issue.field}-${index}`} style={styles.warningText}>
+                    {issue.message}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+
             {saveError ? <Text style={styles.errorText}>{saveError}</Text> : null}
 
             <Pressable
               accessibilityRole="button"
-              disabled={saving}
+              disabled={saving || blockingIssues.length > 0}
               style={[styles.primaryButton, saving && styles.buttonDisabled]}
               onPress={handleSave}
             >
@@ -404,6 +463,21 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   uncertainText: { ...typography.caption, color: colors.warn, lineHeight: 18 },
+
+  blockingCard: {
+    backgroundColor: colors.dangerSoft,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    gap: spacing.xs,
+  },
+  blockingText: { ...typography.body, color: colors.danger, lineHeight: 20 },
+  warningCard: {
+    backgroundColor: colors.warnSoft,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    gap: spacing.xs,
+  },
+  warningText: { ...typography.body, color: colors.warn, lineHeight: 20 },
 
   field: { gap: spacing.xs },
   fieldLabel: { ...typography.label, color: colors.textSecondary },

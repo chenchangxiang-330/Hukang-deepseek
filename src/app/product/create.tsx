@@ -9,7 +9,7 @@
  */
 
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -29,6 +29,7 @@ import {
   draftToNutrition,
   type NutritionDraft,
 } from '@/domain/nutritionDraft';
+import { validateNutrition } from '@/domain/nutritionValidation';
 import { colors, radii, spacing, typography } from '@/theme';
 
 export default function ProductCreateScreen() {
@@ -47,10 +48,23 @@ export default function ProductCreateScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 与「拍营养成分表」页共用同一套合理性校验，避免两处规则不一致
+  const validationIssues = useMemo(() => {
+    const { facts, basisAmount, basisUnit } = draftToNutrition(draft);
+    return validateNutrition({ facts, basis: { amount: basisAmount, unit: basisUnit } });
+  }, [draft]);
+  const blockingIssues = validationIssues.filter((i) => i.severity === 'reject');
+  const warningIssues = validationIssues.filter((i) => i.severity === 'warn');
+
   const handleSave = useCallback(async () => {
     const trimmedName = name.trim();
     if (!trimmedName) {
       setError('请至少填写商品名称。');
+      return;
+    }
+
+    if (blockingIssues.length > 0) {
+      setError(blockingIssues[0].message);
       return;
     }
 
@@ -76,7 +90,7 @@ export default function ProductCreateScreen() {
     } finally {
       setSaving(false);
     }
-  }, [barcode, brand, draft, name, quantity, router]);
+  }, [barcode, blockingIssues, brand, draft, name, quantity, router]);
 
   return (
     <KeyboardAvoidingView
@@ -129,11 +143,30 @@ export default function ProductCreateScreen() {
         <Text style={styles.sectionTitle}>营养成分</Text>
         <NutritionEditor draft={draft} onChange={setDraft} />
 
+        {blockingIssues.length > 0 ? (
+          <View style={styles.blockingCard}>
+            {blockingIssues.map((issue, index) => (
+              <Text key={`${issue.field}-${index}`} style={styles.blockingText}>
+                {issue.message}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+        {blockingIssues.length === 0 && warningIssues.length > 0 ? (
+          <View style={styles.warningCard}>
+            {warningIssues.map((issue, index) => (
+              <Text key={`${issue.field}-${index}`} style={styles.warningText}>
+                {issue.message}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <Pressable
           accessibilityRole="button"
-          disabled={saving}
+          disabled={saving || blockingIssues.length > 0}
           style={[styles.primaryButton, saving && styles.buttonDisabled]}
           onPress={handleSave}
         >
@@ -172,4 +205,18 @@ const styles = StyleSheet.create({
   buttonDisabled: { opacity: 0.5 },
   primaryButtonText: { color: colors.textInverse, fontSize: 15, fontWeight: '600' },
   errorText: { ...typography.body, color: colors.danger },
+  blockingCard: {
+    backgroundColor: colors.dangerSoft,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    gap: spacing.xs,
+  },
+  blockingText: { ...typography.body, color: colors.danger, lineHeight: 20 },
+  warningCard: {
+    backgroundColor: colors.warnSoft,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    gap: spacing.xs,
+  },
+  warningText: { ...typography.body, color: colors.warn, lineHeight: 20 },
 });

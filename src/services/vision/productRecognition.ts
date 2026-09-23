@@ -75,11 +75,27 @@ function makeSteps(): RecognitionStep[] {
 }
 
 export type StepListener = (steps: RecognitionStep[]) => void;
+export type QualityListener = (
+  quality: { metrics: ImageQualityMetrics; verdict: QualityVerdict },
+) => void;
+
+export interface RecognitionCallbacks {
+  onStep?: StepListener;
+  /**
+   * 质量结果一算出来就回调，**不等整条流程跑完**。
+   *
+   * 真机实测教训：原本质量建议要等识别全部结束才渲染，
+   * 而"联网搜索"可能转十几秒——用户在这十几秒里根本看不到
+   * "照片有点糊"的提示，等提示出来早就错过重拍的时机了。
+   */
+  onQuality?: QualityListener;
+}
 
 export async function recognizeProductPhoto(
   imageUri: string,
-  onStep?: StepListener,
+  callbacks: RecognitionCallbacks = {},
 ): Promise<ProductRecognitionResult> {
+  const { onStep, onQuality } = callbacks;
   const steps = makeSteps();
   const emit = () => onStep?.(steps.map((s) => ({ ...s })));
   const setStep = (id: StepId, status: StepStatus, detail?: string) => {
@@ -111,6 +127,8 @@ export async function recognizeProductPhoto(
   if (metrics) {
     const verdict = evaluateImageQuality(metrics);
     result.quality = { metrics, verdict };
+    // 立刻把质量结果推给界面，别让用户干等
+    onQuality?.({ metrics, verdict });
     setStep(
       'quality',
       'done',

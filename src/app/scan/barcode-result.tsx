@@ -8,13 +8,17 @@
  */
 
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { KangKang } from '@/components/KangKang';
 import { NutritionFactsList, ProductIdentity, SourceNotice } from '@/components/ProductFacts';
-import { lookupBarcode, type BarcodeLookupResult } from '@/services/barcode/lookup';
+import {
+  lookupBarcode,
+  type BarcodeLookupResult,
+  type LookupProgress,
+} from '@/services/barcode/lookup';
 import { saveCandidateAsProduct } from '@/services/barcode/saveProduct';
 import type { ProductCandidate } from '@/services/providers/types';
 import { colors, radii, spacing, typography } from '@/theme';
@@ -28,17 +32,40 @@ export default function BarcodeResultScreen() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  /** 联网进度：让用户知道正在查什么，而不是干等一个转圈 */
+  const [progress, setProgress] = useState<LookupProgress | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const cancelSignal = useRef<{ cancelled: boolean }>({ cancelled: false });
+
   const runLookup = useCallback(async () => {
     if (!raw) return;
     setResult(null);
     setSaveError(null);
-    const outcome = await lookupBarcode(raw, type);
+    setProgress(null);
+    setElapsed(0);
+    cancelSignal.current = { cancelled: false };
+
+    const outcome = await lookupBarcode(raw, type, {
+      cancelSignal: cancelSignal.current,
+      onProgress: setProgress,
+    });
     setResult(outcome);
   }, [raw, type]);
 
   useEffect(() => {
     void runLookup();
   }, [runLookup]);
+
+  // 查询期间显示已用时间：超过几秒用户至少知道"它还在动"
+  useEffect(() => {
+    if (result !== null) return;
+    const timer = setInterval(() => setElapsed((v) => v + 1), 1000);
+    return () => clearInterval(timer);
+  }, [result]);
+
+  const handleCancel = useCallback(() => {
+    cancelSignal.current.cancelled = true;
+  }, []);
 
   const confirmCandidate = useCallback(
     async (candidate: ProductCandidate) => {
@@ -65,7 +92,36 @@ export default function BarcodeResultScreen() {
         <View style={styles.centerBlock}>
           <KangKang size={84} mood="thinking" />
           <ActivityIndicator color={colors.mint} />
-          <Text style={styles.dimText}>正在查询商品…</Text>
+          <Text style={styles.dimText}>
+            {progress
+              ? `正在联网查询…（${progress.label}）`
+              : '正在翻本地的小本子…'}
+          </Text>
+          {elapsed >= 2 ? (
+            <Text style={styles.elapsedText}>已经等了 {elapsed} 秒</Text>
+          ) : null}
+          <Pressable accessibilityRole="button" style={styles.textButton} onPress={handleCancel}>
+            <Text style={styles.textButtonText}>不等了</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {/* 用户主动取消：如实说明，不假装"查不到" */}
+      {result?.kind === 'cancelled' ? (
+        <View style={styles.centerBlock}>
+          <KangKang size={84} mood="idle" />
+          <Text style={styles.headline}>已经停止查询</Text>
+          <Text style={styles.dimText}>可以再试一次，或者直接手动创建商品。</Text>
+          <Pressable accessibilityRole="button" style={styles.primaryButton} onPress={runLookup}>
+            <Text style={styles.primaryButtonText}>重新查询</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            style={styles.textButton}
+            onPress={() => router.replace({ pathname: '/product/create', params: {} })}
+          >
+            <Text style={styles.textButtonText}>手动创建商品</Text>
+          </Pressable>
         </View>
       ) : null}
 
@@ -231,6 +287,10 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
+  },
+  elapsedText: {
+    ...typography.caption,
+    color: colors.textTertiary,
   },
   card: {
     backgroundColor: colors.surfaceMuted,

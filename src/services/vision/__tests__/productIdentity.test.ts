@@ -227,6 +227,7 @@ describe('buildSearchKeyword', () => {
         category: null,
         visibleText: '',
         barcode: null,
+        uncertainFields: [],
       }),
     ).toBe('乐事 薯片');
   });
@@ -242,6 +243,7 @@ describe('buildSearchKeyword', () => {
         category: null,
         visibleText: '',
         barcode: null,
+        uncertainFields: [],
       }),
     ).toBe('农夫山泉 500mL');
   });
