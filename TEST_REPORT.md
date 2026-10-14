@@ -47,6 +47,40 @@
 > （`npm ci` 全新安装 497 个包 → `./gradlew assembleRelease`，
 > 612 个任务全部从头执行）。这同时验证了交付版是一个可独立构建的完整项目。
 
+### 1.1 当前交付 APK（1.1.0 · PaddleOCR PP-OCRv5）
+
+`HuKang-1.1.0.apk` 取代 1.0.1 成为当前交付版本。它在 **GitHub Actions 云端**
+构建（本机无 Android SDK），构建记录：run `38546920449`，用时 14 分 19 秒。
+
+| 项 | 值 |
+| --- | --- |
+| 文件 | `releases/android/current/HuKang-1.1.0.apk` |
+| 文件大小 | 144,801,122 字节（约 **138 MB**） |
+| SHA-256 | `c7069de59bfa0094bbfd3b426baaaef89973bc8fc659ec7a142f602d88aef9ee` |
+| 包名 | `com.hukang.deepseek` |
+| versionName | `1.1.0` |
+| versionCode | **`2`** |
+| 应用名 | 护康 |
+| 原生架构 | **`arm64-v8a` / `armeabi-v7a`**（已砍掉 x86/x86_64，见 D021） |
+| 签名 | APK Signature Scheme **v2**，证书 `CN=Android Debug` |
+| 证书 SHA-256 | `fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c` |
+| 可覆盖安装 | ✅ 证书指纹与 1.0.0 / 1.0.1 **完全一致**，且 versionCode 升到 2 |
+| 内嵌模型 | `assets/models/` 下 3 个文件（4.8MB + 16.6MB + 74KB） |
+| ONNX Runtime | `lib/{arm64-v8a,armeabi-v7a}/libonnxruntime.so` |
+
+**体积对比 —— 加了 21MB 模型，净结果反而小了 34MB：**
+
+| 版本 | 体积 | 差异 |
+| --- | --- | --- |
+| 1.0.0 / 1.0.1（4 个 ABI） | 180,798,523 字节（172 MB） | — |
+| **1.1.0（2 个 ABI + 模型 + ONNX Runtime）** | **144,801,122 字节（138 MB）** | **−36 MB（−20%）** |
+
+砍掉仅用于模拟器的 x86/x86_64 省下的空间，超过了 ONNX Runtime 与模型的增量。
+这是 D021 的意外收获，也说明「加功能必然变胖」并不成立。
+
+> **之前 1.0.0 与 1.0.1 的 versionCode 都是 1**，从系统设置里分辨不出装了哪一版。
+> 1.1.0 起改为递增，后续每次交付都应继续递增。
+
 ---
 
 ## 2. 测试结果汇总
