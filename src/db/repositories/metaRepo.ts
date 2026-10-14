@@ -17,6 +17,13 @@ export const META_KEYS = {
   onlineVisionAsked: 'online_vision_asked',
   /** 临期通知开关（§16） */
   expiryNotificationEnabled: 'expiry_notification_enabled',
+  /**
+   * 本地 OCR 引擎选择：'paddle'（PP-OCRv5）或 'mlkit'。
+   *
+   * 存在的意义是**同机对比**：两套引擎都在包里，切换后能用同一张照片
+   * 直接比出高下。等 PP-OCRv5 被确认全面更好，这个开关和 ML Kit 一起删掉。
+   */
+  ocrEngine: 'ocr_engine',
 } as const;
 
 export async function getMeta(key: string): Promise<string | null> {

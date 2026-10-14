@@ -41,6 +41,23 @@ export interface OcrResult {
   width: number;
   height: number;
   blocks: OcrBlock[];
+  /** 实际使用的识别引擎，便于排查「为什么结果变了」 */
+  engine?: OcrEngine;
+}
+
+/**
+ * 识别引擎。
+ *
+ * - `paddle`：PaddleOCR PP-OCRv5（ONNX，离线）。商品包装上召回明显更高，默认。
+ * - `mlkit` ：Google ML Kit 中文识别。速度快、体积小，但包装场景召回低。
+ *
+ * 两者输出结构完全一致，所以解析层不需要区分。
+ */
+export type OcrEngine = 'paddle' | 'mlkit';
+
+export interface OcrEngineInfo {
+  default: OcrEngine;
+  available: OcrEngine[];
 }
 
 export interface ImageQualityMetrics {
@@ -57,8 +74,9 @@ export interface ImageQualityMetrics {
 }
 
 export interface HukangVisionNativeModule {
-  recognizeText(uri: string): Promise<OcrResult>;
+  recognizeText(uri: string, options: { engine?: OcrEngine }): Promise<OcrResult>;
   analyzeQuality(uri: string): Promise<ImageQualityMetrics>;
+  getOcrEngines(): OcrEngineInfo;
 }
 
 const HukangVision = requireOptionalNativeModule<HukangVisionNativeModule>('HukangVision');
