@@ -64,3 +64,7 @@ yarn-error.*
 
 # TypeScript
 *.tsbuildinfo
+
+# Python 验证脚本的缓存（tools/paddleocr）
+__pycache__/
+*.pyc
