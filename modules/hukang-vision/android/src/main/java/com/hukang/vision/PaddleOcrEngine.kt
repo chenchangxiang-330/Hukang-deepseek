@@ -212,31 +212,42 @@ internal class PaddleOcrEngine private constructor(private val context: Context)
       return null
     }
 
-    val isTall = cropHeight > cropWidth * TALL_BOX_RATIO
+    // 整段包在 try/finally 里：推理抛异常时也要把 crop 回收掉，
+    // 否则每失败一次漏一张位图，反复失败会耗光内存。
+    return try {
+      val isTall = cropHeight > cropWidth * TALL_BOX_RATIO
 
-    var best = runRecognition(crop)
-    if (isTall) {
-      for (degrees in intArrayOf(-90, 90)) {
-        val rotated = rotate(crop, degrees.toFloat()) ?: continue
-        val candidate = try {
-          runRecognition(rotated)
-        } finally {
-          rotated.recycle()
+      var best = runRecognition(crop)
+      if (isTall) {
+        for (degrees in intArrayOf(-90, 90)) {
+          val rotated = rotate(crop, degrees.toFloat()) ?: continue
+          try {
+            val candidate = runRecognition(rotated)
+            if (candidate.confidence > best.confidence) best = candidate
+          } finally {
+            rotated.recycle()
+          }
         }
-        if (candidate.confidence > best.confidence) best = candidate
       }
-    }
-    crop.recycle()
 
-    if (best.text.isEmpty()) return null
-    return Line(
-      text = best.text,
-      confidence = best.confidence,
-      left = left,
-      top = top,
-      right = right,
-      bottom = bottom
-    )
+      if (best.text.isEmpty()) {
+        null
+      } else {
+        Line(
+          text = best.text,
+          confidence = best.confidence,
+          left = left,
+          top = top,
+          right = right,
+          bottom = bottom
+        )
+      }
+    } finally {
+      // ⚠️ 区域正好等于整张图时，createBitmap 会直接返回入参本身。
+      // 无条件 recycle 会销毁调用方的原图，导致后续每个框都抛
+      // "trying to use a recycled bitmap" —— 而且报错点离原因很远，极难查。
+      if (crop !== bitmap) crop.recycle()
+    }
   }
 
   private fun rotate(source: Bitmap, degrees: Float): Bitmap? = try {
