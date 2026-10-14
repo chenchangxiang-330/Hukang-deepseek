@@ -68,7 +68,8 @@
 ├── modules/hukang-vision/        Android 原生模块（Kotlin）
 ├── android/                      prebuild 生成的 Android 工程
 ├── assets/                       图标与启动图
-├── tools/mac-ocr/                开发期验证工具（不进 App）
+├── tools/mac-ocr/                开发期 OCR 验证工具（不进 App）
+├── tools/paddleocr/              PP-OCRv5 离线验证脚本（不做进 App）
 ├── docs/                         API 核实记录
 └── releases/android/current/     交付的 APK
 ```
@@ -135,8 +136,20 @@ data_source, created_at, updated_at, last_verified_at
 
 ## 4. Android 原生模块 `hukang-vision`
 
-本地 Kotlin 模块，用 **ML Kit 中文文字识别（bundled 模型）**，
-装好即可**离线**识别中文食品标签。
+本地 Kotlin 模块，提供**离线**文字识别与图片质量度量。
+
+### 两套识别引擎（并存，可切换）
+
+| 引擎 | 实现 | 说明 |
+| --- | --- | --- |
+| **`paddle`（默认）** | PaddleOCR PP-OCRv5 + ONNX Runtime | 商品包装召回明显更高 |
+| `mlkit` | Google ML Kit 中文识别（bundled 模型） | 快、体积小，但包装场景召回低 |
+
+两者输出**完全相同的结构**，所以上层的 TypeScript 解析代码不需要知道用的哪一个。
+保留 ML Kit 的目的是同机 A/B 对比，理由与实测数据见
+[DECISIONS.md D022](DECISIONS.md)。
+
+切换入口：开发者选项（`src/app/dev.tsx`），偏好存在 `app_meta.ocr_engine`。
 
 ### 位置
 
@@ -145,37 +158,64 @@ modules/hukang-vision/
 ├── expo-module.config.json        注册 com.hukang.vision.HukangVisionModule
 ├── index.ts                       TypeScript 接口（requireOptionalNativeModule）
 └── android/
-    ├── build.gradle               依赖 ML Kit 中文识别 + androidx.exifinterface
+    ├── build.gradle               依赖 ML Kit + ONNX Runtime + androidx.exifinterface
+    ├── src/main/assets/models/    PP-OCRv5 的 ONNX 模型与字典（21MB，随 APK 分发）
     └── src/main/java/com/hukang/vision/
-        ├── HukangVisionModule.kt    模块定义与两个 AsyncFunction
-        ├── BitmapLoader.kt          EXIF 方向纠正 + 按需降采样
-        └── ImageQualityAnalyzer.kt  亮度 / 拉普拉斯方差 / 反光比 / 过暗比
+        ├── HukangVisionModule.kt     模块定义、引擎选择
+        ├── PaddleOcrEngine.kt        PP-OCRv5 引擎（预处理 / 推理 / 方向重试）
+        ├── PaddleDetPostProcess.kt   概率图 → 文本框（纯 Kotlin，不引入 OpenCV）
+        ├── PaddleCharset.kt          字符集与 CTC 贪心解码
+        ├── BitmapLoader.kt           EXIF 方向纠正 + 按需降采样
+        └── ImageQualityAnalyzer.kt   亮度 / 拉普拉斯方差 / 反光比 / 过暗比
 ```
 
 ### 暴露的接口
 
 | 方法 | 返回 |
 | --- | --- |
-| `recognizeText(uri)` | `{ text, width, height, blocks[] }`，每块带 `boundingBox` |
+| `recognizeText(uri, { engine? })` | `{ text, width, height, blocks[], engine }`，每块带 `boundingBox` |
 | `analyzeQuality(uri)` | `{ width, height, brightness, blurScore, glareRatio, darkRatio }` |
+| `getOcrEngines()` | `{ default, available[] }`，供开发者页面展示 |
 
-### 两条硬性设计决定
+### 三条硬性设计决定
 
 1. **原生侧只到 OCR Raw Text**。
    语义解析（哪些字是"能量"、数值是多少）全部在 TypeScript 侧。
    好处：解析规则能用单测覆盖、能随时改，不用重编译原生代码。
+   换识别引擎对上层**零影响**，正是因为守住了这条边界。
 2. **质量只返回客观指标**，阈值与"给用户什么建议"放在
    `src/services/vision/imageQuality.ts`，同理可测可调。
+3. **不引入 OpenCV**。PaddleOCR 官方后处理依赖 `cv2.minAreaRect` + `pyclipper`，
+   但 OpenCV 会让 APK 增大几十 MB，而我们只用其中很小一部分。
+   改为纯 Kotlin 的**轴对齐**实现（连通域外接框 + unclip 扩张）。
+   代价是不支持倾斜文字的旋转框 —— 对商品包装正面与营养成分表足够。
 
 ### 为什么带 boundingBox
 
 营养成分表是**二维表格**。只靠纯文本无法还原"哪一行的数值属于哪个项目"。
 `boundingBox`（以及 line/element 两级）是解析表格的必要信息。
 
+> 补充（2026-10）：实测确认 `parseNutritionLabel` 目前**只用按顺序排列的文本行**，
+> 不吃几何信息；几何信息是 `productIdentity` 在用来判断字号与上下位置。
+> 所以 PP-OCRv5 侧「一个检测框 = 一个 line」的映射是够用的，
+> 不需要人为模拟 ML Kit 的分块层级。
+
 ### 平台支持
 
 只在 `expo-module.config.json` 声明了 `android`。
 iOS 上 `requireOptionalNativeModule` 返回 `null`，App 不崩但 OCR 不可用。
+
+### 识别能力的已知边界
+
+| 场景 | 表现 |
+| --- | --- |
+| 横排中文 / 中英混排 | 好 |
+| 竖排中文（如商品名「焙好茶」） | 需要旋转 ±90° 重试才能读出 |
+| 艺术字体、小徽标（如「东鹏饮料」） | 容易读错 |
+| 曲面、强反光 | 对两者都难 |
+
+竖排判据用的是**置信度**（0.99 vs 0.18），不能一律旋转 ——
+那会把本来正确的横排文字转成乱码。
 
 ---
 
@@ -189,6 +229,16 @@ Image → OCR → Raw Text → Parser → Structured Data
 
 - **OCR**：`src/services/vision/ocr.ts` 包装原生模块
 - **Parser**：`src/services/vision/nutritionParser.ts`（Phase 4）
+
+### 引擎选择
+
+`runOcr(imageUri, engineOverride?)` 缺省从 `app_meta.ocr_engine` 读偏好
+（`src/services/vision/enginePreference.ts`），默认 `paddle`（PP-OCRv5）。
+
+返回结果里带上**实际使用的引擎**，这样日志和开发者页面能直接看出
+「这次结果是哪套引擎给的」—— 排查「为什么结果变了」时非常关键。
+
+`engineOverride` 只给开发者对比用，业务代码不要传。
 
 ### 失败必须分类（不允许静默）
 
@@ -341,7 +391,8 @@ interface FoodVisionProvider {
 
 ### 当前状态
 
-**没有接入任何在线视觉模型。** 识别 100% 本地（ML Kit OCR + 规则解析）。
+**没有接入任何在线视觉模型。** 识别 100% 本地
+（PaddleOCR PP-OCRv5 或 ML Kit OCR + 规则解析，见第 4、5 节）。
 
 原因是需要 API Key。授权文案与持久化已经落地
 （`src/services/vision/consent.ts` + 我的页面的开关），
@@ -416,6 +467,7 @@ interface FoodVisionProvider {
 | `src/components/NutritionEditor.tsx` | 营养编辑器（创建页与确认页共用） |
 | `modules/hukang-vision/` | Kotlin 原生模块 |
 | `tools/mac-ocr/` | 开发期 OCR 验证工具（不进 App） |
+| `tools/paddleocr/` | PP-OCRv5 离线验证脚本：模型规格、字符集映射、完整流水线 |
 
 ---
 
